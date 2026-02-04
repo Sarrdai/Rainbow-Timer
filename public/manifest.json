@@ -1,0 +1,21 @@
+{
+  "name": "Rainbow Timer",
+  "short_name": "Rainbow Timer",
+  "description": "A visual timer app with a rainbow dial.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#E6E6FA",
+  "theme_color": "#46378a",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
