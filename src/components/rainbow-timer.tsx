@@ -6,6 +6,7 @@ import { Maximize, Minimize, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Confetti, ConfettiRain } from './confetti';
 import { cn } from '@/lib/utils';
+import { TimeUnitSwitch } from './time-unit-switch';
 
 const SIZE = 320;
 const CENTER = SIZE / 2;
@@ -14,7 +15,8 @@ const RAINBOW_OUTER_RADIUS = DIAL_RADIUS + 0.5;
 const LABEL_RADIUS = DIAL_RADIUS + 20;
 const TICK_START_RADIUS = DIAL_RADIUS - 8;
 const TICK_END_RADIUS = DIAL_RADIUS;
-const MAX_TIME_MS = 60 * 60 * 1000;
+const MAX_TIME_MIN_MS = 60 * 60 * 1000;
+const MAX_TIME_SEC_MS = 60 * 1000;
 const INNER_WHITE_RADIUS = RAINBOW_OUTER_RADIUS * 0.47;
 
 const CENTER_CIRCLE_RADIUS = DIAL_RADIUS * 0.25;
@@ -62,6 +64,8 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     const [hasMounted, setHasMounted] = useState(false);
     const [angle, setAngle] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
+    const isDraggingRef = useRef(isDragging);
+    isDraggingRef.current = isDragging;
     const [timeData, setTimeData] = useState<{ startTime: number; duration: number } | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const countdownFrameId = useRef<number | null>(null);
@@ -69,6 +73,8 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     const wakeLockSentinel = useRef<any>(null);
     const interactionStartRef = useRef<{time: number, angle: number, wasRunning: boolean} | null>(null);
     const quickSetAnimationId = useRef<number | null>(null);
+    const snapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const angleRef = useRef(angle);
     
     const [isMuted, setIsMuted] = useState(true);
     const [isAlarmPlaying, setIsAlarmPlaying] = useState(false);
@@ -89,20 +95,38 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     
     const interruptedRef = useRef(false);
     const isCelebratingRef = useRef(isCelebrating);
-isCelebratingRef.current = isCelebrating;
+    isCelebratingRef.current = isCelebrating;
     const animationStateRef = useRef(animationState);
-animationStateRef.current = animationState;
+    animationStateRef.current = animationState;
     const isRainingRef = useRef(isRaining);
-isRainingRef.current = isRaining;
+    isRainingRef.current = isRaining;
     const isAlarmPlayingRef = useRef(isAlarmPlaying);
-isAlarmPlayingRef.current = isAlarmPlaying;
+    isAlarmPlayingRef.current = isAlarmPlaying;
 
     const lastTickSecond = useRef<number | null>(null);
     const growingSoundRef = useRef<OscillatorNode | null>(null);
 
+    const [timeUnit, setTimeUnit] = useState<'min' | 'sec'>('min');
+    const maxTime = timeUnit === 'min' ? MAX_TIME_MIN_MS : MAX_TIME_SEC_MS;
+
+    const cancelSettingAnimations = useCallback(() => {
+        if (snapTimeoutRef.current) {
+            clearTimeout(snapTimeoutRef.current);
+            snapTimeoutRef.current = null;
+        }
+        if (quickSetAnimationId.current) {
+            cancelAnimationFrame(quickSetAnimationId.current);
+            quickSetAnimationId.current = null;
+        }
+    }, []);
+
     useEffect(() => {
         setHasMounted(true);
     }, []);
+    
+    useEffect(() => {
+        angleRef.current = angle;
+    }, [angle]);
 
     const handleFullscreenToggle = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -176,11 +200,16 @@ isAlarmPlayingRef.current = isAlarmPlaying;
     }, [isMuted, stopGrowingSound]);
 
     const stopCelebrationAndReset = useCallback((e?: MouseEvent | TouchEvent) => {
-        if (!isCelebratingRef.current && animationStateRef.current === 'idle' && !isRainingRef.current) {
+        const celebrationInProgress = isCelebratingRef.current || animationStateRef.current !== 'idle' || isRainingRef.current;
+        if (!celebrationInProgress) {
             return;
         }
 
         if (e) {
+            const target = e.target as HTMLElement;
+            // Prevent interrupting when interacting with controls
+            if (target.closest('button')) return;
+            
             onInterruptCelebration(e);
         }
 
@@ -279,10 +308,7 @@ isAlarmPlayingRef.current = isAlarmPlaying;
           cancelAnimationFrame(countdownFrameId.current);
           countdownFrameId.current = null;
         }
-        if (quickSetAnimationId.current) {
-            cancelAnimationFrame(quickSetAnimationId.current);
-            quickSetAnimationId.current = null;
-        }
+        cancelSettingAnimations();
         setTimeData(null);
         lastTickSecond.current = null;
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
@@ -291,14 +317,14 @@ isAlarmPlayingRef.current = isAlarmPlaying;
         try {
           localStorage.removeItem(TIMER_STORAGE_KEY);
         } catch (error) {}
-    }, []);
+    }, [cancelSettingAnimations]);
     
     const startTimerFromAngle = useCallback((angleToSet: number) => {
         cancelAllTimersAndAnimations();
         stopCelebrationAndReset();
         lastTickSecond.current = null;
         if (angleToSet > 0.1) {
-          const duration = (angleToSet / 360) * MAX_TIME_MS;
+          const duration = (angleToSet / 360) * maxTime;
           const newEndTime = Date.now() + duration;
     
           setTimeData({
@@ -307,7 +333,7 @@ isAlarmPlayingRef.current = isAlarmPlaying;
           });
   
           try {
-            const dataToStore = JSON.stringify({ endTime: newEndTime, duration });
+            const dataToStore = JSON.stringify({ endTime: newEndTime, duration, unit: timeUnit });
             localStorage.setItem(TIMER_STORAGE_KEY, dataToStore);
           } catch (error) {
             // Ignore write errors
@@ -324,16 +350,13 @@ isAlarmPlayingRef.current = isAlarmPlaying;
             cancelAllTimersAndAnimations();
             setAngle(0);
         }
-      }, [cancelAllTimersAndAnimations, isMuted, stopCelebrationAndReset]);
+      }, [cancelAllTimersAndAnimations, isMuted, stopCelebrationAndReset, maxTime, timeUnit]);
 
-      const animateAngle = useCallback((targetAngle: number) => {
+      const animateAngle = useCallback((targetAngle: number, startTimerOnComplete = true) => {
+        cancelSettingAnimations();
         const DURATION = 400; // ms
-        const startAngle = angle;
         const startTime = performance.now();
-
-        if (quickSetAnimationId.current) {
-            cancelAnimationFrame(quickSetAnimationId.current);
-        }
+        const startAngle = angleRef.current;
 
         const step = (currentTime: number) => {
             const elapsed = currentTime - startTime;
@@ -341,42 +364,49 @@ isAlarmPlayingRef.current = isAlarmPlaying;
             const easedProgress = 1 - Math.pow(1 - progress, 3); // Ease-out cubic
 
             const newAngle = startAngle + (targetAngle - startAngle) * easedProgress;
-            setAngle(newAngle);
 
             if (progress < 1) {
+                setAngle(newAngle);
                 quickSetAnimationId.current = requestAnimationFrame(step);
             } else {
                 setAngle(targetAngle);
-                startTimerFromAngle(targetAngle);
+                if (startTimerOnComplete) {
+                    startTimerFromAngle(targetAngle);
+                }
                 quickSetAnimationId.current = null;
             }
         };
 
         quickSetAnimationId.current = requestAnimationFrame(step);
-    }, [angle, startTimerFromAngle]);
+    }, [startTimerFromAngle, cancelSettingAnimations]);
 
-    const handleQuickSet = useCallback((minutes: number) => {
+    const handleQuickSet = useCallback((value: number) => {
       stopCelebrationAndReset();
       cancelAllTimersAndAnimations();
       
-      const newAngle = (minutes / 60) * 360;
+      const newAngle = (value / 60) * 360;
       animateAngle(newAngle);
     }, [stopCelebrationAndReset, cancelAllTimersAndAnimations, animateAngle]);
+
+    const handleUnitChange = useCallback((newUnit: "min" | "sec") => {
+        if (newUnit === timeUnit) return;
+        cancelAllTimersAndAnimations();
+        stopCelebrationAndReset();
+        setAngle(0);
+        setTimeUnit(newUnit);
+      }, [timeUnit, cancelAllTimersAndAnimations, stopCelebrationAndReset]);
 
     const pauseTimer = useCallback(() => {
         if (countdownFrameId.current) {
             cancelAnimationFrame(countdownFrameId.current);
             countdownFrameId.current = null;
         }
-        if (quickSetAnimationId.current) {
-            cancelAnimationFrame(quickSetAnimationId.current);
-            quickSetAnimationId.current = null;
-        }
+        cancelSettingAnimations();
         
         if (timeData) {
             const elapsed = Date.now() - timeData.startTime;
             const remaining = timeData.duration - elapsed;
-            const remainingAngle = (remaining / MAX_TIME_MS) * 360;
+            const remainingAngle = (remaining / maxTime) * 360;
             if (isFinite(remainingAngle)) {
                 setAngle(Math.max(0, remainingAngle));
             }
@@ -387,25 +417,16 @@ isAlarmPlayingRef.current = isAlarmPlaying;
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
             navigator.serviceWorker.controller.postMessage({ type: 'CANCEL_TIMER' });
         }
-    }, [timeData]);
+    }, [timeData, maxTime, cancelSettingAnimations]);
 
     const handleInteractionStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-        const target = e.target as HTMLElement;
-        if (target.closest('g.quick-set-button')) {
-            e.stopPropagation();
-            return;
-        }
-        
         const celebrationInProgress = isCelebratingRef.current || animationStateRef.current !== 'idle';
         if (celebrationInProgress) {
-            // The global listener will handle stopping the celebration
+            stopCelebrationAndReset(e.nativeEvent);
             return;
         }
         
-        if (quickSetAnimationId.current) {
-            cancelAnimationFrame(quickSetAnimationId.current);
-            quickSetAnimationId.current = null;
-        }
+        cancelSettingAnimations();
 
         const targetButton = e.target as HTMLElement;
         if (targetButton.closest('button')) {
@@ -418,10 +439,12 @@ isAlarmPlayingRef.current = isAlarmPlaying;
         setIsDragging(true);
         lastDragAngle.current = null; 
 
-    }, [angle, timeData]);
+    }, [angle, timeData, stopCelebrationAndReset, cancelSettingAnimations]);
     
     const handleInteractionMove = useCallback((e: MouseEvent | TouchEvent) => {
-      if (!isDragging || !containerRef.current) return;
+      if (!isDraggingRef.current || !containerRef.current) return;
+      
+      cancelSettingAnimations();
       
       const celebrationInProgress = isCelebratingRef.current || animationStateRef.current !== 'idle';
       if(celebrationInProgress && !interruptedRef.current) return;
@@ -462,43 +485,61 @@ isAlarmPlayingRef.current = isAlarmPlaying;
       else if (deltaAngle < -180) deltaAngle += 360;
 
       setAngle(prevAngle => {
-        let newAngle = prevAngle + deltaAngle;
-        return Math.max(0, Math.min(360, newAngle));
+        return Math.max(0, Math.min(360, prevAngle + deltaAngle));
       });
       lastDragAngle.current = currentAngleFromCoords;
-    }, [isDragging, pauseTimer]);
+
+      snapTimeoutRef.current = setTimeout(() => {
+        if (!isDraggingRef.current) return;
+        
+        const duration = (angleRef.current / 360) * maxTime;
+        const roundingUnitMs = timeUnit === 'min' ? 60 * 1000 : 1000;
+        const roundedDuration = Math.round(duration / roundingUnitMs) * roundingUnitMs;
+        const snappedAngle = (roundedDuration / maxTime) * 360;
+        
+        animateAngle(snappedAngle, false);
+    }, 800);
+
+    }, [isDragging, pauseTimer, timeUnit, maxTime, animateAngle, cancelSettingAnimations]);
 
     const handleInteractionEnd = useCallback(() => {
         if (isDragging) {
             setIsDragging(false);
             lastDragAngle.current = null;
+
+            cancelSettingAnimations();
             
             const startInfo = interactionStartRef.current;
             interactionStartRef.current = null;
-
-            if (startInfo) {
-                const elapsed = Date.now() - startInfo.time;
-                if (elapsed < 200) { // It's a tap, not a drag
-                    const celebrationInProgress = isCelebratingRef.current || animationStateRef.current !== 'idle';
-                    if (celebrationInProgress) {
-                      // Already handled by the global listener
-                      return;
-                    }
-                    if (startInfo.wasRunning) {
-                        startTimerFromAngle(startInfo.angle); // Resume timer
-                        return;
-                    }
-                    
-                    setAngle(0);
+    
+            if (startInfo && (Date.now() - startInfo.time) < 200) { // It's a tap, not a drag
+                const celebrationInProgress = isCelebratingRef.current || animationStateRef.current !== 'idle';
+                if (celebrationInProgress) {
+                  return;
+                }
+                if (startInfo.wasRunning) {
+                    startTimerFromAngle(startInfo.angle); // Resume timer
                     return;
                 }
+                
+                animateAngle(0, false);
+                return;
             }
             
             if (!interruptedRef.current) {
-                startTimerFromAngle(angle);
+                // Snapping logic for drag-and-release
+                const duration = (angleRef.current / 360) * maxTime;
+                
+                // Round to nearest minute or second
+                const roundingUnitMs = timeUnit === 'min' ? 60 * 1000 : 1000;
+                const roundedDuration = Math.round(duration / roundingUnitMs) * roundingUnitMs;
+    
+                const snappedAngle = (roundedDuration / maxTime) * 360;
+    
+                animateAngle(snappedAngle, true);
             }
         }
-    }, [isDragging, angle, startTimerFromAngle]);
+    }, [isDragging, startTimerFromAngle, animateAngle, timeUnit, maxTime, cancelSettingAnimations]);
 
     const handleMuteToggle = async () => {
       const celebrationInProgress = isCelebratingRef.current || animationStateRef.current !== 'idle';
@@ -566,16 +607,22 @@ isAlarmPlayingRef.current = isAlarmPlaying;
         try {
           const storedData = localStorage.getItem(TIMER_STORAGE_KEY);
           if (storedData) {
-            const { endTime, duration } = JSON.parse(storedData);
+            const { endTime, duration, unit: storedUnit } = JSON.parse(storedData);
             const remaining = endTime - Date.now();
             
             if (remaining > 0 && duration > 0) {
+              const currentUnit = storedUnit || 'min';
+              setTimeUnit(currentUnit);
+              const currentMaxTime = currentUnit === 'min' ? MAX_TIME_MIN_MS : MAX_TIME_SEC_MS;
+
               const newStartTime = Date.now() - (duration - remaining);
               setTimeData({
                 startTime: newStartTime,
                 duration: duration,
               });
-              const newAngle = (remaining / duration) * (duration / MAX_TIME_MS * 360);
+
+              const newAngle = (remaining / currentMaxTime) * 360;
+
               if(isFinite(newAngle)) {
                 setAngle(newAngle);
               } else {
@@ -623,7 +670,6 @@ isAlarmPlayingRef.current = isAlarmPlaying;
         const handler = (e: MouseEvent | TouchEvent) => {
             const celebrationInProgress = isCelebratingRef.current || animationStateRef.current !== 'idle';
             if (!celebrationInProgress) return;
-
             stopCelebrationAndReset(e);
         };
         document.body.addEventListener('mousedown', handler);
@@ -666,8 +712,7 @@ isAlarmPlayingRef.current = isAlarmPlaying;
             // ignore
         }
       } else {
-        const initialAngle = (timeData.duration / MAX_TIME_MS) * 360;
-        const newAngle = (remaining / timeData.duration) * initialAngle;
+        const newAngle = (remaining / maxTime) * 360;
         setAngle(newAngle);
         countdownFrameId.current = requestAnimationFrame(animate);
       }
@@ -678,7 +723,7 @@ isAlarmPlayingRef.current = isAlarmPlaying;
     return () => {
       if (countdownFrameId.current) cancelAnimationFrame(countdownFrameId.current);
     };
-  }, [timeData, animationState, isMuted, playSingleBeep]);
+  }, [timeData, animationState, isMuted, playSingleBeep, maxTime]);
 
     const playBang = useCallback(() => {
         const audioCtx = audioContextRef.current;
@@ -814,7 +859,7 @@ isAlarmPlayingRef.current = isAlarmPlaying;
             {/* Timer dial part */}
             <div className={cn(
                 "absolute inset-0 flex items-center justify-center", 
-                isFullscreen && "fixed z-50"
+                isFullscreen && "fixed z-40"
             )}>
                 {/* backdrop */}
                 <div 
@@ -827,6 +872,7 @@ isAlarmPlayingRef.current = isAlarmPlaying;
                 {/* dial container */}
                 <div
                     ref={containerRef}
+                    data-dial-container="true"
                     className={cn(
                         "relative aspect-square touch-none select-none rounded-full transition-all duration-400 ease-in-out",
                         "w-[320px]",
@@ -835,6 +881,12 @@ isAlarmPlayingRef.current = isAlarmPlaying;
                     onMouseDown={handleInteractionStart}
                     onTouchStart={handleInteractionStart}
                 >
+                    <TimeUnitSwitch
+                        unit={timeUnit}
+                        onUnitChange={handleUnitChange}
+                        className="absolute -top-1 -left-1 z-20"
+                    />
+
                     {!isForcedFullscreen && (
                         <Button
                             variant="secondary"
@@ -970,6 +1022,7 @@ isAlarmPlayingRef.current = isAlarmPlaying;
                                 />
                             );
                         })}
+
                         
                         <g filter="url(#shadow)">
                             <circle cx={CENTER} cy={CENTER} r={CENTER_CIRCLE_RADIUS} className="fill-[hsl(var(--background))]" />
