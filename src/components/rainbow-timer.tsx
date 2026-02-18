@@ -538,10 +538,10 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         }
     }, []);
 
-    const handleInteractionStart = useCallback(async (e: React.MouseEvent | React.TouchEvent) => {
+    const handleInteractionStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
         const target = e.target as HTMLElement;
         const celebrationInProgress = isAlarmPlayingRef.current || isCelebratingRef.current || animationStateRef.current !== 'idle' || isRainingRef.current;
-    
+
         if (celebrationInProgress) {
           stopCelebrationAndReset(e);
           e.stopPropagation();
@@ -553,24 +553,24 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
           e.stopPropagation();
           return;
         }
-        
-        await initializeAudio();
-        
+
         const wasRunning = !!timeDataRef.current;
-        
+
         pauseTimer();
-        
+
         if (wasAutoSwitchedRef.current) {
             resetAutoSwitchMode();
         }
-        
+
         cancelSettingAnimations();
-        
+
         interactionStartRef.current = { time: Date.now(), angle: angleRef.current, wasRunning: wasRunning };
-        
+
         setIsDragging(true);
-        lastDragAngle.current = null; 
-    
+        lastDragAngle.current = null;
+
+        initializeAudio(); // fire and forget – wärmt den AudioContext vor, ohne den Drag zu verzögern
+
     }, [pauseTimer, cancelSettingAnimations, resetAutoSwitchMode, stopCelebrationAndReset, initializeAudio]);
     
     const handleInteractionMove = useCallback((e: MouseEvent | TouchEvent) => {
@@ -734,8 +734,8 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         return () => {
           window.removeEventListener('mousemove', moveHandler);
           window.removeEventListener('touchmove', moveHandler);
-          window.addEventListener('mouseup', endHandler);
-          window.addEventListener('touchend', endHandler);
+          window.removeEventListener('mouseup', endHandler);
+          window.removeEventListener('touchend', endHandler);
         };
       }, [isDragging, handleInteractionMove, handleInteractionEnd]);
     
