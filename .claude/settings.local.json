@@ -10,7 +10,16 @@
       "Bash(npx cap add:*)",
       "Bash(npm run build:web:*)",
       "Bash(npm run build:native:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(npx cap run:*)",
+      "Bash(where:*)",
+      "Bash(gradlew.bat:*)",
+      "Bash(./gradlew assembleDebug:*)",
+      "Bash(ls:*)",
+      "Bash(npx cap:*)"
     ]
   }
 }

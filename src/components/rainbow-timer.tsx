@@ -1319,7 +1319,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             </div>
 
             <div className={cn(
-                "absolute top-full left-1/2 -translate-x-1/2 mt-4 w-full max-w-[320px] flex flex-col items-center gap-2 transition-opacity duration-200",
+                "absolute top-full left-1/2 -translate-x-1/2 mt-4 w-full max-w-[320px] flex flex-col items-center gap-6 transition-opacity duration-200",
                 !isUIVisible && "pointer-events-none opacity-0"
             )}>
                 <Button
@@ -1331,9 +1331,9 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                 >
                     {isMuted ? <VolumeX className="h-6 w-6" color={INDIGO} /> : <Volume2 className="h-6 w-6" color={INDIGO} />}
                 </Button>
-                <div className="h-12 w-full max-w-[320px] text-center px-4 flex items-center justify-center">
+                <div className="h-16 w-full max-w-[320px] text-center px-4 flex items-center justify-center">
                     <p className={cn(
-                        "text-xs text-muted-foreground leading-snug transition-opacity duration-500 pt-1",
+                        "text-xs text-muted-foreground leading-snug transition-opacity duration-500",
                         isMuted && "opacity-0"
                     )}>
                         {getNotificationHint()}

@@ -8,13 +8,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { TitleConfetti } from '@/components/title-confetti';
 
-const translations = {
-  en: "Drag the dial to set a visual timer.",
-  de: "Ziehe am Rad, um einen visuellen Timer einzustellen."
-};
-
 export default function Home() {
-  const [subtitle, setSubtitle] = useState(translations.en);
   const [manualFullscreen, setManualFullscreen] = useState(false);
   const [isForcedFullscreen, setIsForcedFullscreen] = useState(false);
   const [isPartyMode, setIsPartyMode] = useState(false);
@@ -63,12 +57,6 @@ export default function Home() {
 
 
   useEffect(() => {
-    if (navigator.language.startsWith('de')) {
-      setSubtitle(translations.de);
-    }
-  }, []);
-
-  useEffect(() => {
     const THRESHOLD = 650; // Height in pixels
     const handleResize = () => {
       setIsForcedFullscreen(window.innerHeight < THRESHOLD);
@@ -106,10 +94,10 @@ export default function Home() {
           />
       ))}
       <div className={cn(
-        "absolute top-12 left-1/2 -translate-x-1/2 w-full transition-opacity duration-200",
+        "absolute top-16 left-1/2 -translate-x-1/2 w-full transition-opacity duration-200",
         !isTitleAndFooterVisible && "pointer-events-none opacity-0"
       )}>
-        <div 
+        <div
           ref={titleRef}
           className="relative flex cursor-pointer items-center justify-center gap-x-3"
           onClick={handleTitleClick}
@@ -119,9 +107,6 @@ export default function Home() {
             <TogglingWord isPartyMode={isPartyMode} />
           </h1>
         </div>
-        <p className="mt-2 text-muted-foreground">
-          {subtitle}
-        </p>
       </div>
       
       <RainbowTimer 
