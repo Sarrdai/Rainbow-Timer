@@ -19,7 +19,8 @@
       "Bash(gradlew.bat:*)",
       "Bash(./gradlew assembleDebug:*)",
       "Bash(ls:*)",
-      "Bash(npx cap:*)"
+      "Bash(npx cap:*)",
+      "Bash(magick:*)"
     ]
   }
 }

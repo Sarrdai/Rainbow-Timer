@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Solid pink background -->
+  <rect x="0" y="0" width="512" height="512" fill="#FCF7FD" opacity="1"/>
+
+  <!-- Clip path for 3/4 circle arc -->
+  <clipPath id="arcClip">
+    <path d="M 256,256 L 256,40 A 216,216 0 1,1 40,256 L 256,256 Z"/>
+  </clipPath>
+
+  <!-- Rainbow rings -->
+  <g clip-path="url(#arcClip)">
+    <circle cx="256" cy="256" r="203.5" fill="none" stroke="#E81416" stroke-width="25"/>
+    <circle cx="256" cy="256" r="178.5" fill="none" stroke="#FFA500" stroke-width="25"/>
+    <circle cx="256" cy="256" r="153.5" fill="none" stroke="#FAEB36" stroke-width="25"/>
+    <circle cx="256" cy="256" r="128.5" fill="none" stroke="#79C314" stroke-width="25"/>
+    <circle cx="256" cy="256" r="103.5" fill="none" stroke="#487DE7" stroke-width="25"/>
+    <circle cx="256" cy="256" r="78.5" fill="none" stroke="#4B369D" stroke-width="25"/>
+    <circle cx="256" cy="256" r="53.5" fill="none" stroke="#70369D" stroke-width="25"/>
+  </g>
+</svg>

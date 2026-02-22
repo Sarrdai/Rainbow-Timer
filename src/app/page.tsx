@@ -94,7 +94,7 @@ export default function Home() {
           />
       ))}
       <div className={cn(
-        "absolute top-16 left-1/2 -translate-x-1/2 w-full transition-opacity duration-200",
+        "absolute top-28 left-1/2 -translate-x-1/2 w-full transition-opacity duration-200",
         !isTitleAndFooterVisible && "pointer-events-none opacity-0"
       )}>
         <div
