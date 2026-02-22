@@ -598,8 +598,16 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
 
     const handleInteractionStart = useCallback(async (e: React.MouseEvent | React.TouchEvent) => {
         const target = e.target as HTMLElement;
+
+        // Ignore duplicate start events during dragging (happens with touch on SVG elements)
+        if (isDraggingRef.current) {
+          e.stopPropagation();
+          e.preventDefault();
+          return;
+        }
+
         const celebrationInProgress = isAlarmPlayingRef.current || isCelebratingRef.current || animationStateRef.current !== 'idle' || isRainingRef.current;
-    
+
         if (celebrationInProgress) {
           stopCelebrationAndReset(e);
           e.stopPropagation();
@@ -611,34 +619,34 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
           e.stopPropagation();
           return;
         }
-        
+
         await initializeAudio();
-        
+
         const wasRunning = !!timeDataRef.current;
-        
+
         pauseTimer();
-        
+
         if (wasAutoSwitchedRef.current) {
             resetAutoSwitchMode();
         }
-        
+
         cancelSettingAnimations();
-        
+
         interactionStartRef.current = { time: Date.now(), angle: angleRef.current, wasRunning: wasRunning };
-        
+
         setIsDragging(true);
-        lastDragAngle.current = null; 
-    
+        lastDragAngle.current = null;
+
     }, [pauseTimer, cancelSettingAnimations, resetAutoSwitchMode, stopCelebrationAndReset, initializeAudio]);
     
     const handleInteractionMove = useCallback((e: MouseEvent | TouchEvent) => {
       if (!isDraggingRef.current || !containerRef.current) return;
-      
+
       cancelSettingAnimations();
-      
+
       const celebrationInProgress = isAlarmPlayingRef.current || isCelebratingRef.current || animationStateRef.current !== 'idle';
       if(celebrationInProgress && !interruptedRef.current) return;
-      
+
       if ('touches' in e && e.cancelable) e.preventDefault();
     
       if (interactionStartRef.current) {
@@ -679,16 +687,16 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
       if(snapTimeoutRef.current) clearTimeout(snapTimeoutRef.current);
       snapTimeoutRef.current = setTimeout(() => {
         if (!isDraggingRef.current) return;
-        
+
         const currentUnit = timeUnitRef.current;
         const currentMaxTime = currentUnit === 'min' ? MAX_TIME_MIN_MS : MAX_TIME_SEC_MS;
         const duration = (angleRef.current / 360) * currentMaxTime;
-        
+
         const roundingUnitMs = currentUnit === 'min' ? 60 * 1000 : 1000;
         const roundedDuration = Math.round(duration / roundingUnitMs) * roundingUnitMs;
-        
+
         const snappedAngle = roundedDuration > 0 ? (roundedDuration / currentMaxTime) * 360 : 0;
-        
+
         animateAngle(snappedAngle, false, 'set');
     }, 800);
 
@@ -1056,7 +1064,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         <g>
             {/* 1. Background Layer */}
             <g>
-                <circle cx={CENTER} cy={CENTER} r={DIAL_RADIUS} className="fill-[hsl(300,100%,97%)]" />
+                <circle cx={CENTER} cy={CENTER} r={DIAL_RADIUS} className="fill-[hsl(300,100%,97%)]" style={{ pointerEvents: 'none' }} />
                 {shouldShowDetailView && (
                     <g>
                         {ringColors.map((color, i) => {
@@ -1070,6 +1078,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                                     fill="transparent"
                                     stroke={color}
                                     strokeWidth={bandWidth + 0.5}
+                                    style={{ pointerEvents: 'none' }}
                                 />
                             );
                         })}
@@ -1184,6 +1193,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                             }
                             transform={`rotate(-90 ${CENTER} ${CENTER})`}
                             strokeLinecap="butt"
+                            style={{ pointerEvents: 'none' }}
                         />
                     ) : (
                         angle > 0 && (
@@ -1205,6 +1215,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                                             strokeDashoffset={strokeDashoffset}
                                             transform={`rotate(-90 ${CENTER} ${CENTER})`}
                                             strokeLinecap="butt"
+                                            style={{ pointerEvents: 'none' }}
                                         />
                                     );
                                 })}
@@ -1289,7 +1300,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                                 <RenderDial />
 
                                 <g filter="url(#shadow)">
-                                    <circle cx={CENTER} cy={CENTER} r={CENTER_CIRCLE_RADIUS} className="fill-[hsl(var(--background))]" />
+                                    <circle cx={CENTER} cy={CENTER} r={CENTER_CIRCLE_RADIUS} className="fill-[hsl(var(--background))]" style={{ pointerEvents: 'none' }} />
                                     <line
                                         x1={polarToCartesian(CENTER, CENTER, INDICATOR_START_RADIUS, angle).x}
                                         y1={polarToCartesian(CENTER, CENTER, INDICATOR_START_RADIUS, angle).y}
@@ -1298,6 +1309,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                                         stroke={INDIGO}
                                         strokeWidth="2"
                                         strokeLinecap="round"
+                                        style={{ pointerEvents: 'none' }}
                                     />
                                 </g>
                             </>
