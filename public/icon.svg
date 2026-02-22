@@ -5,17 +5,17 @@
 
   <!-- Clip path for 3/4 circle arc -->
   <clipPath id="arcClip">
-    <path d="M 256,256 L 256,60 A 196,196 0 1,1 60,256 L 256,256 Z"/>
+    <path d="M 256,256 L 256,100 A 156,156 0 1,1 100,256 L 256,256 Z"/>
   </clipPath>
 
-  <!-- Rainbow rings with 60px padding from edge -->
+  <!-- Rainbow rings with 100px padding from edge, thinner strokes -->
   <g clip-path="url(#arcClip)">
-    <circle cx="256" cy="256" r="183.5" fill="none" stroke="#E81416" stroke-width="25"/>
-    <circle cx="256" cy="256" r="158.5" fill="none" stroke="#FFA500" stroke-width="25"/>
-    <circle cx="256" cy="256" r="133.5" fill="none" stroke="#FAEB36" stroke-width="25"/>
-    <circle cx="256" cy="256" r="108.5" fill="none" stroke="#79C314" stroke-width="25"/>
-    <circle cx="256" cy="256" r="83.5" fill="none" stroke="#487DE7" stroke-width="25"/>
-    <circle cx="256" cy="256" r="58.5" fill="none" stroke="#4B369D" stroke-width="25"/>
-    <circle cx="256" cy="256" r="33.5" fill="none" stroke="#70369D" stroke-width="25"/>
+    <circle cx="256" cy="256" r="146" fill="none" stroke="#e81416" stroke-width="20"/>
+    <circle cx="256" cy="256" r="126" fill="none" stroke="#ffa500" stroke-width="20"/>
+    <circle cx="256" cy="256" r="106" fill="none" stroke="#faeb36" stroke-width="20"/>
+    <circle cx="256" cy="256" r="86" fill="none" stroke="#79c314" stroke-width="20"/>
+    <circle cx="256" cy="256" r="66" fill="none" stroke="#487de7" stroke-width="20"/>
+    <circle cx="256" cy="256" r="46" fill="none" stroke="#4b369d" stroke-width="20"/>
+    <circle cx="256" cy="256" r="26" fill="none" stroke="#70369d" stroke-width="20"/>
   </g>
 </svg>
