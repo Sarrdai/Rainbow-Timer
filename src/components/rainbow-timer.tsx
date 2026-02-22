@@ -8,6 +8,23 @@ import { Button } from '@/components/ui/button';
 import { Confetti, ConfettiRain } from './confetti';
 import { cn } from '@/lib/utils';
 import { TimeUnitSwitch } from './time-unit-switch';
+import {
+  requestNotificationPermissions,
+  checkNotificationPermissions,
+  scheduleTimerNotification,
+  cancelAllNotifications,
+  setupNotificationChannels
+} from '@/services/native-notifications';
+import { keepAwake, allowSleep } from '@/services/wake-lock';
+import { isNativePlatform, isAndroid } from '@/services/platform-utils';
+import {
+  startTimerForegroundService,
+  stopTimerForegroundService
+} from '@/services/foreground-service';
+import {
+  shouldShowBatteryDialog,
+  requestBatteryOptimizationExemption
+} from '@/services/battery-optimization';
 
 const SIZE = 320;
 const CENTER = SIZE / 2;
@@ -90,7 +107,6 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     const containerRef = useRef<HTMLDivElement>(null);
     const countdownFrameId = useRef<number | null>(null);
     const lastDragAngle = useRef<number | null>(null);
-    const wakeLockSentinel = useRef<any>(null);
     const interactionStartRef = useRef<{time: number, angle: number, wasRunning: boolean} | null>(null);
     const quickSetAnimationId = useRef<number | null>(null);
     const snapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -253,15 +269,34 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         cancelSettingAnimations();
         setTimeData(null);
         lastTickSecond.current = null;
-        if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+
+        // Cancel notifications and foreground service
+        if (isNativePlatform()) {
+            cancelAllNotifications();
+
+            // Stop Android foreground service
+            if (isAndroid()) {
+                stopTimerForegroundService();
+            }
+        } else if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
             navigator.serviceWorker.controller.postMessage({ type: 'CANCEL_TIMER' });
         }
+
         try {
           localStorage.removeItem(TIMER_STORAGE_KEY);
         } catch (error) {}
     }, [cancelSettingAnimations]);
 
-    const startTimerFromAngle = useCallback((angleToSet: number) => {
+    const startTimerFromAngle = useCallback(async (angleToSet: number) => {
+        // Check battery optimization on Android on first timer start
+        if (isAndroid() && shouldShowBatteryDialog()) {
+          try {
+            await requestBatteryOptimizationExemption();
+          } catch (error) {
+            console.error('Failed to request battery optimization exemption:', error);
+          }
+        }
+
         cancelAllTimersAndAnimations();
         stopCelebrationAndReset();
         lastTickSecond.current = null;
@@ -281,12 +316,22 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             localStorage.setItem(TIMER_STORAGE_KEY, dataToStore);
           } catch (error) {
           }
-    
-          if (!isMutedRef.current && typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage({
-                type: 'START_TIMER',
-                endTime: newEndTime,
-            });
+
+          // Schedule notification and start foreground service
+          if (!isMutedRef.current) {
+            if (isNativePlatform()) {
+              scheduleTimerNotification(new Date(newEndTime), 'party_horn.mp3');
+
+              // Start Android foreground service
+              if (isAndroid()) {
+                startTimerForegroundService(newEndTime);
+              }
+            } else if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+              navigator.serviceWorker.controller.postMessage({
+                  type: 'START_TIMER',
+                  endTime: newEndTime,
+              });
+            }
           }
     
         } else {
@@ -431,39 +476,40 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     }, []);
 
     useEffect(() => {
-        if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+        // Setup notification channels for Android
+        setupNotificationChannels();
+
+        // Keep service worker for PWA fallback
+        if (typeof window !== 'undefined' && !isNativePlatform() && 'serviceWorker' in navigator) {
             navigator.serviceWorker.register('/sw.js').catch(error => {
             });
         }
     }, []);
 
     useEffect(() => {
-      if (typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator) {
-        setNotificationPermission(Notification.permission);
-        if ('showTrigger' in Notification.prototype) {
+      const checkPermissions = async () => {
+        if (isNativePlatform()) {
+          // On native, we always support persistent notifications
           setSupportsPersistentNotifications(true);
+          const hasPermission = await checkNotificationPermissions();
+          setNotificationPermission(hasPermission ? 'granted' : 'default');
+        } else if (typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator) {
+          setNotificationPermission(Notification.permission);
+          if ('showTrigger' in Notification.prototype) {
+            setSupportsPersistentNotifications(true);
+          }
         }
-      }
+      };
+      checkPermissions();
     }, []);
 
     useEffect(() => {
       const requestWakeLock = async () => {
-          if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
-              try {
-                  wakeLockSentinel.current = await navigator.wakeLock.request('screen');
-              } catch (err: any) {
-              }
-          }
+          await keepAwake();
       };
 
       const releaseWakeLock = async () => {
-          if (wakeLockSentinel.current) {
-            try {
-              await wakeLockSentinel.current.release();
-              wakeLockSentinel.current = null;
-            } catch (err: any) {
-            }
-          }
+          await allowSleep();
       };
 
       const handleVisibilityChange = () => {
@@ -474,14 +520,18 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
 
       if (timeData) {
           requestWakeLock();
-          document.addEventListener('visibilitychange', handleVisibilityChange);
+          if (typeof document !== 'undefined') {
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+          }
       } else {
           releaseWakeLock();
       }
 
       return () => {
           releaseWakeLock();
-          document.removeEventListener('visibilitychange', handleVisibilityChange);
+          if (typeof document !== 'undefined') {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+          }
       };
     }, [timeData]);
     
@@ -530,10 +580,18 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             countdownFrameId.current = null;
         }
         setIsTransitioningToAutoSec(false);
-        setTimeData(null); 
+        setTimeData(null);
         lastTickSecond.current = null;
 
-        if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        // Cancel notifications and foreground service
+        if (isNativePlatform()) {
+            cancelAllNotifications();
+
+            // Stop Android foreground service
+            if (isAndroid()) {
+                stopTimerForegroundService();
+            }
+        } else if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
             navigator.serviceWorker.controller.postMessage({ type: 'CANCEL_TIMER' });
         }
     }, []);
@@ -692,29 +750,50 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         localStorage.setItem('rainbowTimerMuted', JSON.stringify(newMutedState));
       } catch (e) {}
 
-      if (!newMutedState) { 
+      if (!newMutedState) {
         const audioReady = await initializeAudio();
         if (audioReady) {
-            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+            // Request notification permissions
+            if (isNativePlatform()) {
+              const hasPermission = await requestNotificationPermissions();
+              setNotificationPermission(hasPermission ? 'granted' : 'denied');
+            } else if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
               try {
                 const newPermission = await Notification.requestPermission();
                 setNotificationPermission(newPermission);
               } catch (e) {
               }
             }
-            if (timeData) { 
+
+            // Re-schedule notification if timer is running
+            if (timeData) {
                 const remaining = timeData.duration - (Date.now() - timeData.startTime);
                 const endTime = Date.now() + remaining;
-                if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                if (isNativePlatform()) {
+                    scheduleTimerNotification(new Date(endTime), 'party_horn.mp3');
+
+                    // Restart Android foreground service
+                    if (isAndroid()) {
+                        startTimerForegroundService(endTime);
+                    }
+                } else if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
                     navigator.serviceWorker.controller.postMessage({ type: 'START_TIMER', endTime });
                 }
             }
         }
-      } else { 
+      } else {
         if (isAlarmPlaying) {
-            setIsAlarmPlaying(false); 
+            setIsAlarmPlaying(false);
         }
-        if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        // Cancel notifications and foreground service when muting
+        if (isNativePlatform()) {
+            cancelAllNotifications();
+
+            // Stop Android foreground service
+            if (isAndroid()) {
+                stopTimerForegroundService();
+            }
+        } else if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
             navigator.serviceWorker.controller.postMessage({ type: 'CANCEL_TIMER' });
         }
       }

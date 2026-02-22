@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(npx cap init:*)",
+      "Bash(npm run build:*)",
+      "Bash(dir:*)",
+      "Bash(npx cap add:*)",
+      "Bash(npm run build:web:*)",
+      "Bash(npm run build:native:*)",
+      "Bash(npm run dev:*)"
+    ]
+  }
+}
