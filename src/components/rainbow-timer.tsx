@@ -1117,25 +1117,6 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             {/* 1. Background Layer */}
             <g>
                 <circle cx={CENTER} cy={CENTER} r={DIAL_RADIUS} className="fill-[hsl(300,100%,97%)]" style={{ pointerEvents: 'none' }} />
-                {shouldShowDetailView && (
-                    <g>
-                        {ringColors.map((color, i) => {
-                            const radius = INNER_WHITE_RADIUS + i * bandWidth + bandWidth / 2;
-                            return (
-                                <circle
-                                    key={`bg-ring-${i}`}
-                                    cx={CENTER}
-                                    cy={CENTER}
-                                    r={radius}
-                                    fill="transparent"
-                                    stroke={color}
-                                    strokeWidth={bandWidth + 0.5}
-                                    style={{ pointerEvents: 'none' }}
-                                />
-                            );
-                        })}
-                    </g>
-                )}
             </g>
 
             {/* 2. Ticks and Numbers Layer */}
@@ -1253,22 +1234,33 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             {(animationState !== 'bursting' && !isCelebrating) && (
                 <g>
                     {shouldShowDetailView ? (
-                        <circle
-                            cx={CENTER}
-                            cy={CENTER}
-                            r={(INNER_WHITE_RADIUS + RAINBOW_OUTER_RADIUS) / 2}
-                            fill="transparent"
-                            stroke="hsl(300,100%,97%)"
-                            strokeWidth={RAINBOW_OUTER_RADIUS - INNER_WHITE_RADIUS + 3.5}
-                            strokeDasharray={2 * Math.PI * ((INNER_WHITE_RADIUS + RAINBOW_OUTER_RADIUS) / 2)}
-                            strokeDashoffset={
-                                (2 * Math.PI * ((INNER_WHITE_RADIUS + RAINBOW_OUTER_RADIUS) / 2)) *
-                                (1 - (angle / 360))
-                            }
-                            transform={`rotate(-90 ${CENTER} ${CENTER})`}
-                            strokeLinecap="butt"
-                            style={{ pointerEvents: 'none' }}
-                        />
+                        // auto-sec: rainbow arcs cover the ELAPSED portion (on top of ticks),
+                        // leaving remaining time on white — ticks visible on white, hidden under rainbow
+                        angle < 360 && (
+                            <g>
+                                {ringColors.map((color, i) => {
+                                    const radius = INNER_WHITE_RADIUS + i * bandWidth + bandWidth / 2;
+                                    const circumference = 2 * Math.PI * radius;
+                                    const elapsedLength = circumference * (1 - angle / 360);
+                                    return (
+                                        <circle
+                                            key={i}
+                                            cx={CENTER}
+                                            cy={CENTER}
+                                            r={radius}
+                                            fill="transparent"
+                                            stroke={color}
+                                            strokeWidth={bandWidth + 0.5}
+                                            strokeDasharray={`${elapsedLength} ${circumference - elapsedLength}`}
+                                            strokeDashoffset={0}
+                                            transform={`rotate(${angle - 90} ${CENTER} ${CENTER})`}
+                                            strokeLinecap="butt"
+                                            style={{ pointerEvents: 'none' }}
+                                        />
+                                    );
+                                })}
+                            </g>
+                        )
                     ) : (
                         angle > 0 && (
                             <g>
