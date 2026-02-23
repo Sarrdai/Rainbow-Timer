@@ -83,23 +83,23 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="relative h-screen w-full flex flex-col items-center justify-center p-4 text-center overflow-hidden">
+    <main className="relative h-screen w-full flex flex-col items-center justify-center gap-6 sm:gap-8 lg:gap-10 p-4 pb-12 text-center overflow-hidden">
       {confettiBursts.map(burst => (
-          <TitleConfetti 
-              key={burst.id} 
+          <TitleConfetti
+              key={burst.id}
               origin={{ x: burst.x, y: burst.y }}
               onComplete={() => {
                   setConfettiBursts(currentBursts => currentBursts.filter(b => b.id !== burst.id));
-              }} 
+              }}
           />
       ))}
       <div className={cn(
-        "absolute top-28 left-1/2 -translate-x-1/2 w-full transition-opacity duration-200",
+        "flex-shrink-0 transition-opacity duration-200",
         !isTitleAndFooterVisible && "pointer-events-none opacity-0"
       )}>
         <div
           ref={titleRef}
-          className="relative flex cursor-pointer items-center justify-center gap-x-3"
+          className="relative flex cursor-pointer items-center justify-center"
           onClick={handleTitleClick}
         >
           <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl font-headline flex flex-col items-center justify-center">
@@ -108,18 +108,18 @@ export default function Home() {
           </h1>
         </div>
       </div>
-      
-      <RainbowTimer 
-        isFullscreen={isTimerInFullscreen} 
+
+      <RainbowTimer
+        isFullscreen={isTimerInFullscreen}
         onFullscreenChange={setManualFullscreen}
-        isPartyMode={isPartyMode} 
+        isPartyMode={isPartyMode}
         isForcedFullscreen={isForcedFullscreen}
         titleBangTrigger={titleBangTrigger}
         onInterruptCelebration={handleInterruptCelebration}
         isUIVisible={isTitleAndFooterVisible}
         titleRef={titleRef}
       />
-      
+
       <div className={cn("absolute bottom-4 left-1/2 -translate-x-1/2 w-full transition-opacity duration-200", !isTitleAndFooterVisible && "pointer-events-none opacity-0")}>
         <Footer />
       </div>

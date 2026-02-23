@@ -1297,14 +1297,15 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
 
   return (
     <>
-        <div className="relative w-[320px] h-[320px]">
+        <div className="relative flex flex-col items-center w-[320px] sm:w-[350px] md:w-[390px] lg:w-[430px] xl:w-[460px]">
             {/* Timer dial part */}
-            <div className={cn(
-                "absolute inset-0 flex items-center justify-center", 
-                isFullscreen && "fixed z-40"
-            )}>
+            <div className="relative w-full aspect-square">
+                <div className={cn(
+                    "absolute inset-0 flex items-center justify-center",
+                    isFullscreen && "fixed z-40"
+                )}>
                 {/* backdrop */}
-                <div 
+                <div
                     className={cn(
                         "absolute inset-0 bg-background/90 backdrop-blur-sm transition-opacity duration-400 ease-in-out",
                         isFullscreen ? "opacity-100" : "opacity-0 pointer-events-none"
@@ -1317,8 +1318,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                     data-dial-container="true"
                     className={cn(
                         "relative aspect-square touch-none select-none rounded-full transition-all duration-400 ease-in-out",
-                        "w-[320px]",
-                        isFullscreen && "w-[80vmin]"
+                        isFullscreen ? "w-[80vmin]" : "w-full"
                     )}
                     onMouseDown={handleInteractionStart}
                     onTouchStart={handleInteractionStart}
@@ -1381,10 +1381,11 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                         )}
                     </svg>
                 </div>
+                </div>
             </div>
 
             <div className={cn(
-                "absolute top-full left-1/2 -translate-x-1/2 mt-4 w-full max-w-[320px] flex flex-col items-center gap-6 transition-opacity duration-200",
+                "mt-4 w-full flex flex-col items-center gap-6 transition-opacity duration-200",
                 !isUIVisible && "pointer-events-none opacity-0"
             )}>
                 <Button
@@ -1396,9 +1397,9 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                 >
                     {isMuted ? <VolumeX className="h-6 w-6" color={INDIGO} /> : <Volume2 className="h-6 w-6" color={INDIGO} />}
                 </Button>
-                <div className="h-16 w-full max-w-[320px] flex items-center justify-center px-4">
+                <div className="h-16 w-full flex items-center justify-center px-4">
                     {!isMuted && !isSoundHintDismissed && (
-                        <div className="relative w-full rounded-lg bg-background shadow-md border border-border px-4 py-2 text-xs text-muted-foreground leading-snug text-center">
+                        <div className="relative w-full rounded-lg bg-background shadow-md px-4 py-2 text-xs text-muted-foreground leading-snug text-center">
                             {getNotificationHint()}
                             <button
                                 className="absolute top-1 right-1 p-0.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
