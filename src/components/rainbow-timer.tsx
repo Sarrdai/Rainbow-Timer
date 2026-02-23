@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { createPortal } from 'react-dom';
-import { Maximize, Minimize, Volume2, VolumeX } from 'lucide-react';
+import { Maximize, Minimize, Volume2, VolumeX, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Confetti, ConfettiRain } from './confetti';
 import { cn } from '@/lib/utils';
@@ -157,6 +157,12 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
 
     const wasAutoSwitchedRef = useRef(false);
     const displayUnitModeForSwitch = wasAutoSwitchedRef.current ? "auto-sec" : (timeUnit === 'sec' ? "sec" : "min");
+
+    const [secModeProgress, setSecModeProgress] = useState(0);
+    const secModeProgressRef = useRef(0);
+    const secModeAnimRef = useRef<number | null>(null);
+
+    const [isSoundHintDismissed, setIsSoundHintDismissed] = useState(false);
 
     const onInterruptCelebrationRef = useRef(onInterruptCelebration);
     onInterruptCelebrationRef.current = onInterruptCelebration;
@@ -430,6 +436,47 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     useEffect(() => {
         timeUnitRef.current = timeUnit;
         isDetailViewRef.current = isDetailView;
+    }, [timeUnit, isDetailView]);
+
+    // Animate secModeProgress (0=min, 1=sec) over 500ms when sec mode changes
+    useEffect(() => {
+        const isSecModeActive = timeUnit === 'sec' && !wasAutoSwitchedRef.current;
+        const targetProgress = isSecModeActive ? 1 : 0;
+
+        if (secModeAnimRef.current) {
+            cancelAnimationFrame(secModeAnimRef.current);
+            secModeAnimRef.current = null;
+        }
+
+        if (secModeProgressRef.current === targetProgress) return;
+
+        const DURATION = 500;
+        const startProgress = secModeProgressRef.current;
+        let startTime: number | null = null;
+
+        const animate = (currentTime: number) => {
+            if (startTime === null) startTime = currentTime;
+            const elapsed = currentTime - startTime;
+            const t = Math.min(elapsed / DURATION, 1);
+            const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+            const newProgress = startProgress + (targetProgress - startProgress) * eased;
+            secModeProgressRef.current = newProgress;
+            setSecModeProgress(newProgress);
+            if (t < 1) {
+                secModeAnimRef.current = requestAnimationFrame(animate);
+            } else {
+                secModeAnimRef.current = null;
+            }
+        };
+
+        secModeAnimRef.current = requestAnimationFrame(animate);
+
+        return () => {
+            if (secModeAnimRef.current) {
+                cancelAnimationFrame(secModeAnimRef.current);
+                secModeAnimRef.current = null;
+            }
+        };
     }, [timeUnit, isDetailView]);
 
     const handleFullscreenToggle = (e: React.MouseEvent) => {
@@ -755,6 +802,9 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
       
       const newMutedState = !isMuted;
       setIsMuted(newMutedState);
+      if (!newMutedState) {
+        setIsSoundHintDismissed(false);
+      }
       try {
         localStorage.setItem('rainbowTimerMuted', JSON.stringify(newMutedState));
       } catch (e) {}
@@ -1059,7 +1109,8 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
   };
 
   const RenderDial = () => {
-    const shouldShowDetailView = isDetailView;
+    // auto-sec uses rainbow background + white arc; sec mode uses white background + rainbow (like min mode)
+    const shouldShowDetailView = isDetailView && wasAutoSwitchedRef.current;
 
     return (
         <g>
@@ -1092,7 +1143,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                 {Array.from({ length: 60 }).map((_, i) => {
                 if ((i + 1) % 5 === 0) return null;
                 const tickAngle = (i + 1) * 6;
-                const start = polarToCartesian(CENTER, CENTER, DIAL_RADIUS - 5, tickAngle);
+                const start = polarToCartesian(CENTER, CENTER, DIAL_RADIUS - 5 - 2.5 * secModeProgress, tickAngle);
                 const end = polarToCartesian(CENTER, CENTER, DIAL_RADIUS, tickAngle);
                 return (
                     <line
@@ -1111,7 +1162,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             <g>
                 {ticks.map((tick, i) => {
                 const tickAngle = (i + 1) * 30;
-                const start = polarToCartesian(CENTER, CENTER, TICK_START_RADIUS, tickAngle);
+                const start = polarToCartesian(CENTER, CENTER, TICK_START_RADIUS - 4 * secModeProgress, tickAngle);
                 const end = polarToCartesian(CENTER, CENTER, TICK_END_RADIUS, tickAngle);
                 const labelPos = polarToCartesian(CENTER, CENTER, LABEL_RADIUS, tickAngle);
 
@@ -1175,6 +1226,28 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                 );
                 })}
             </g>
+
+            {/* 2b. Half-second dot markers (appear in sec mode) */}
+            {secModeProgress > 0 && (
+                <g>
+                    {Array.from({ length: 60 }).map((_, i) => {
+                        const dotAngle = 3 + i * 6;
+                        const tickMidRadius = DIAL_RADIUS - (5 + 2.5 * secModeProgress) / 2;
+                        const dotPos = polarToCartesian(CENTER, CENTER, tickMidRadius, dotAngle);
+                        return (
+                            <circle
+                                key={`half-sec-dot-${i}`}
+                                cx={dotPos.x}
+                                cy={dotPos.y}
+                                r={1.125}
+                                fill={INDIGO}
+                                opacity={secModeProgress}
+                                style={{ pointerEvents: 'none' }}
+                            />
+                        );
+                    })}
+                </g>
+            )}
 
             {/* 3. Animation Layer (covers background) */}
             {(animationState !== 'bursting' && !isCelebrating) && (
@@ -1331,13 +1404,19 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                 >
                     {isMuted ? <VolumeX className="h-6 w-6" color={INDIGO} /> : <Volume2 className="h-6 w-6" color={INDIGO} />}
                 </Button>
-                <div className="h-16 w-full max-w-[320px] text-center px-4 flex items-center justify-center">
-                    <p className={cn(
-                        "text-xs text-muted-foreground leading-snug transition-opacity duration-500",
-                        isMuted && "opacity-0"
-                    )}>
-                        {getNotificationHint()}
-                    </p>
+                <div className="h-16 w-full max-w-[320px] flex items-center justify-center px-4">
+                    {!isMuted && !isSoundHintDismissed && (
+                        <div className="relative w-full rounded-lg bg-background shadow-md border border-border px-4 py-2 text-xs text-muted-foreground leading-snug text-center">
+                            {getNotificationHint()}
+                            <button
+                                className="absolute top-1 right-1 p-0.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                                onClick={(e) => { e.stopPropagation(); setIsSoundHintDismissed(true); }}
+                                aria-label="Schließen"
+                            >
+                                <X className="h-3 w-3" />
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

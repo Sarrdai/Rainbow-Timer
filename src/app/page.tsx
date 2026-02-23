@@ -102,7 +102,7 @@ export default function Home() {
           className="relative flex cursor-pointer items-center justify-center gap-x-3"
           onClick={handleTitleClick}
         >
-          <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl font-headline flex items-center justify-center gap-x-3">
+          <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl font-headline flex flex-col items-center justify-center">
             <RainbowWord key={rainbowKey} />
             <TogglingWord isPartyMode={isPartyMode} />
           </h1>
