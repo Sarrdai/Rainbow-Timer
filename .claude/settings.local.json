@@ -20,7 +20,11 @@
       "Bash(./gradlew assembleDebug:*)",
       "Bash(ls:*)",
       "Bash(npx cap:*)",
-      "Bash(magick:*)"
+      "Bash(magick:*)",
+      "Bash(npm outdated:*)",
+      "Bash(npm update:*)",
+      "Bash(npm audit:*)",
+      "Bash(firebase deploy:*)"
     ]
   }
 }
