@@ -596,7 +596,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         }
     }, []);
 
-    const handleInteractionStart = useCallback(async (e: React.MouseEvent | React.TouchEvent) => {
+    const handleInteractionStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
         const target = e.target as HTMLElement;
 
         // Ignore duplicate start events during dragging (happens with touch on SVG elements)
@@ -620,8 +620,6 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
           return;
         }
 
-        await initializeAudio();
-
         const wasRunning = !!timeDataRef.current;
 
         pauseTimer();
@@ -636,6 +634,9 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
 
         setIsDragging(true);
         lastDragAngle.current = null;
+
+        // Fire-and-forget: audio init must not block drag start
+        initializeAudio();
 
     }, [pauseTimer, cancelSettingAnimations, resetAutoSwitchMode, stopCelebrationAndReset, initializeAudio]);
     
@@ -1286,17 +1287,16 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                     )}
 
                     <svg width="100%" height="100%" viewBox={`0 0 ${SIZE} ${SIZE}`}>
+                        <defs>
+                            <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+                                <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="rgba(0,0,0,0.15)" />
+                            </filter>
+                            <filter id="text-shadow" x="-50%" y="-50%" width="200%" height="200%">
+                                <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="rgba(0,0,0,0.2)" />
+                            </filter>
+                        </defs>
                         {hasMounted && (
                             <>
-                                <defs>
-                                    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-                                        <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="rgba(0,0,0,0.15)" />
-                                    </filter>
-                                    <filter id="text-shadow" x="-50%" y="-50%" width="200%" height="200%">
-                                        <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="rgba(0,0,0,0.2)" />
-                                    </filter>
-                                </defs>
-                                
                                 <RenderDial />
 
                                 <g filter="url(#shadow)">
