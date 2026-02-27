@@ -31,7 +31,7 @@ export function TimeUnitSwitch({ mode, onUnitChange, className }: TimeUnitSwitch
       {/* Sliding indicator */}
       <div
         className={cn(
-          "absolute h-7 w-[38px] rounded-full bg-background shadow-sm transition-transform duration-300 ease-in-out",
+          "absolute h-[calc(100%-4px)] w-[38px] rounded-full bg-background shadow-sm transition-transform duration-300 ease-in-out",
           isPhysicallyOnSec ? "translate-x-[38px]" : "translate-x-0"
         )}
       />
