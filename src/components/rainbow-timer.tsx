@@ -1,16 +1,15 @@
 
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback, Fragment } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Maximize, Minimize, Volume2, VolumeX, X } from 'lucide-react';
+import { Maximize, Minimize, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Confetti, ConfettiRain } from './confetti';
 import { cn } from '@/lib/utils';
 import { TimeUnitSwitch } from './time-unit-switch';
 import {
   requestNotificationPermissions,
-  checkNotificationPermissions,
   scheduleTimerNotification,
   cancelAllNotifications,
   setupNotificationChannels
@@ -54,20 +53,6 @@ const numberColors = [...ringColors].reverse();
 
 const TIMER_STORAGE_KEY = 'rainbowTimerData';
 
-const translations = {
-    en: {
-      soundHint: "The alarm sound will only play if this tab is active.",
-      persistent: "A system notification will be sent when the timer ends, even if the tab is closed.",
-      fallback: "Background notifications may only work for a short time after you leave the tab.",
-      disabled: "Notifications are disabled."
-    },
-    de: {
-      soundHint: "Der Alarmton wird nur abgespielt, wenn dieser Tab aktiv ist.",
-      persistent: "Eine Systembenachrichtigung wird gesendet, wenn der Timer endet, auch wenn der Tab geschlossen ist.",
-      fallback: "Hintergrundbenachrichtigungen funktionieren möglicherweise nur für kurze Zeit, nachdem Sie den Tab verlassen haben.",
-      disabled: "Benachrichtigungen sind deaktiviert."
-    }
-};
 
 const polarToCartesian = (centerX: number, centerY: number, radius: number, angleInDegrees: number) => {
   const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180.0;
@@ -116,10 +101,6 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     const audioContextRef = useRef<AudioContext | null>(null);
     const alarmAudioRef = useRef<HTMLAudioElement | null>(null);
     const [animationState, setAnimationState] = useState<'idle' | 'bursting'>('idle');
-    const [lang, setLang] = useState<'en' | 'de'>('en');
-
-    const [notificationPermission, setNotificationPermission] = useState('default');
-    const [supportsPersistentNotifications, setSupportsPersistentNotifications] = useState(false);
     
     const [isAlarmPlaying, setIsAlarmPlaying] = useState(false);
     const isAlarmPlayingRef = useRef(isAlarmPlaying);
@@ -161,8 +142,6 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     const [secModeProgress, setSecModeProgress] = useState(0);
     const secModeProgressRef = useRef(0);
     const secModeAnimRef = useRef<number | null>(null);
-
-    const [isSoundHintDismissed, setIsSoundHintDismissed] = useState(false);
 
     const onInterruptCelebrationRef = useRef(onInterruptCelebration);
     onInterruptCelebrationRef.current = onInterruptCelebration;
@@ -284,8 +263,6 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             if (isAndroid()) {
                 stopTimerForegroundService();
             }
-        } else if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage({ type: 'CANCEL_TIMER' });
         }
 
         try {
@@ -324,19 +301,12 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
           }
 
           // Schedule notification and start foreground service
-          if (!isMutedRef.current) {
-            if (isNativePlatform()) {
-              scheduleTimerNotification(new Date(newEndTime), 'party_horn.mp3');
+          if (!isMutedRef.current && isNativePlatform()) {
+            await scheduleTimerNotification(new Date(newEndTime), 'party_horn.mp3');
 
-              // Start Android foreground service
-              if (isAndroid()) {
+            // Start Android foreground service
+            if (isAndroid()) {
                 startTimerForegroundService(newEndTime);
-              }
-            } else if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
-              navigator.serviceWorker.controller.postMessage({
-                  type: 'START_TIMER',
-                  endTime: newEndTime,
-              });
             }
           }
     
@@ -517,37 +487,8 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     }, [initializeAudio]);
 
     useEffect(() => {
-        if (typeof window !== 'undefined' && navigator.language.startsWith('de')) {
-            setLang('de');
-        }
-    }, []);
-
-    useEffect(() => {
         // Setup notification channels for Android
         setupNotificationChannels();
-
-        // Keep service worker for PWA fallback
-        if (typeof window !== 'undefined' && !isNativePlatform() && 'serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js').catch(error => {
-            });
-        }
-    }, []);
-
-    useEffect(() => {
-      const checkPermissions = async () => {
-        if (isNativePlatform()) {
-          // On native, we always support persistent notifications
-          setSupportsPersistentNotifications(true);
-          const hasPermission = await checkNotificationPermissions();
-          setNotificationPermission(hasPermission ? 'granted' : 'default');
-        } else if (typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator) {
-          setNotificationPermission(Notification.permission);
-          if ('showTrigger' in Notification.prototype) {
-            setSupportsPersistentNotifications(true);
-          }
-        }
-      };
-      checkPermissions();
     }, []);
 
     useEffect(() => {
@@ -585,6 +526,13 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     const handleQuickSet = useCallback((e: React.MouseEvent | React.TouchEvent, value: number) => {
       e.preventDefault();
       e.stopPropagation();
+
+      const celebrationInProgress = isAlarmPlayingRef.current || isCelebratingRef.current || animationStateRef.current !== 'idle' || isRainingRef.current;
+      if (celebrationInProgress) {
+        stopCelebrationAndReset(e);
+        return;
+      }
+
       setIsTransitioningToAutoSec(false);
       stopCelebrationAndReset();
       cancelAllTimersAndAnimations();
@@ -638,8 +586,6 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             if (isAndroid()) {
                 stopTimerForegroundService();
             }
-        } else if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage({ type: 'CANCEL_TIMER' });
         }
     }, []);
 
@@ -797,46 +743,30 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
       const celebrationInProgress = isAlarmPlayingRef.current || isCelebratingRef.current || animationStateRef.current !== 'idle';
       if (celebrationInProgress) {
         stopCelebrationAndReset();
-        return; 
+        return;
       }
-      
+
       const newMutedState = !isMuted;
       setIsMuted(newMutedState);
-      if (!newMutedState) {
-        setIsSoundHintDismissed(false);
-      }
       try {
         localStorage.setItem('rainbowTimerMuted', JSON.stringify(newMutedState));
       } catch (e) {}
 
       if (!newMutedState) {
         const audioReady = await initializeAudio();
-        if (audioReady) {
-            // Request notification permissions
-            if (isNativePlatform()) {
-              const hasPermission = await requestNotificationPermissions();
-              setNotificationPermission(hasPermission ? 'granted' : 'denied');
-            } else if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-              try {
-                const newPermission = await Notification.requestPermission();
-                setNotificationPermission(newPermission);
-              } catch (e) {
-              }
-            }
+        if (audioReady && isNativePlatform()) {
+            // Request notification permissions on native
+            await requestNotificationPermissions();
 
             // Re-schedule notification if timer is running
             if (timeData) {
                 const remaining = timeData.duration - (Date.now() - timeData.startTime);
                 const endTime = Date.now() + remaining;
-                if (isNativePlatform()) {
-                    scheduleTimerNotification(new Date(endTime), 'party_horn.mp3');
+                await scheduleTimerNotification(new Date(endTime), 'party_horn.mp3');
 
-                    // Restart Android foreground service
-                    if (isAndroid()) {
-                        startTimerForegroundService(endTime);
-                    }
-                } else if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                    navigator.serviceWorker.controller.postMessage({ type: 'START_TIMER', endTime });
+                // Restart Android foreground service
+                if (isAndroid()) {
+                    startTimerForegroundService(endTime);
                 }
             }
         }
@@ -846,17 +776,15 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         }
         // Cancel notifications and foreground service when muting
         if (isNativePlatform()) {
-            cancelAllNotifications();
+            await cancelAllNotifications();
 
-            // Stop Android foreground service
             if (isAndroid()) {
                 stopTimerForegroundService();
             }
-        } else if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage({ type: 'CANCEL_TIMER' });
         }
       }
     };
+
 
     useEffect(() => {
         const moveHandler = (e: MouseEvent | TouchEvent) => handleInteractionMove(e);
@@ -884,19 +812,15 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         
         const handler = (e: MouseEvent | TouchEvent) => {
             if (!interactionStarted) return;
-            
-            const celebrationInProgress = isAlarmPlayingRef.current || isCelebratingRef.current || animationStateRef.current !== 'idle' || isRainingRef.current;
-            if (!celebrationInProgress) {
-                interactionStarted = false;
-                return;
-            }
-
             interactionStarted = false;
 
-            const isDialClick = (e.target as HTMLElement).closest('[data-dial-container="true"]');
-            const isDialChildClick = (e.target as HTMLElement).closest('[data-dial-container-child]');
+            // If mousedown/touchstart already interrupted the celebration, don't double-trigger
+            if (interruptedRef.current) return;
 
-            if (!titleRef.current?.contains(e.target as Node) && !isDialClick && !isDialChildClick) {
+            const celebrationInProgress = isAlarmPlayingRef.current || isCelebratingRef.current || animationStateRef.current !== 'idle' || isRainingRef.current;
+            if (!celebrationInProgress) return;
+
+            if (!titleRef.current?.contains(e.target as Node)) {
                 if (e.cancelable) {
                     e.preventDefault();
                     e.stopPropagation();
@@ -1090,24 +1014,6 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     }
   }, []);
 
-  const getNotificationHint = () => {
-    if (!hasMounted) return "";
-    const hints = translations[lang];
-    const soundHint = hints.soundHint;
-
-    if (notificationPermission === 'granted') {
-        if (supportsPersistentNotifications) {
-            return `${hints.persistent} ${soundHint}`;
-        }
-        return `${hints.fallback} ${soundHint}`;
-    }
-    
-    if (notificationPermission === 'denied') {
-        return `${hints.disabled} ${soundHint}`;
-    }
-    return soundHint;
-  };
-
   const RenderDial = () => {
     // auto-sec uses rainbow background + white arc; sec mode uses white background + rainbow (like min mode)
     const shouldShowDetailView = isDetailView && wasAutoSwitchedRef.current;
@@ -1297,18 +1203,16 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
 
   return (
     <>
-        <div className="relative flex flex-col items-center w-[320px] sm:w-[350px] md:w-[390px] lg:w-[430px] xl:w-[460px]">
-            {/* Timer dial part */}
-            <div className="relative w-full aspect-square">
-                <div className={cn(
-                    "absolute inset-0 flex items-center justify-center",
-                    isFullscreen && "fixed z-40"
-                )}>
+        {/* Dial wrapper: always fixed at viewport center so the dial center never jumps during transitions */}
+        <div className={cn(
+            "fixed inset-0 z-40 flex items-center justify-center",
+            !isFullscreen && "pointer-events-none"
+        )}>
                 {/* backdrop */}
                 <div
                     className={cn(
                         "absolute inset-0 bg-background/90 backdrop-blur-sm transition-opacity duration-400 ease-in-out",
-                        isFullscreen ? "opacity-100" : "opacity-0 pointer-events-none"
+                        isFullscreen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
                     )}
                     onClick={handleBackdropClick}
                 />
@@ -1317,40 +1221,12 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                     ref={containerRef}
                     data-dial-container="true"
                     className={cn(
-                        "relative aspect-square touch-none select-none rounded-full transition-all duration-400 ease-in-out",
-                        isFullscreen ? "w-[80vmin]" : "w-full"
+                        "relative aspect-square touch-none select-none rounded-full transition-all duration-400 ease-in-out pointer-events-auto",
+                        isFullscreen ? "w-[80vmin]" : "w-[320px] sm:w-[350px] md:w-[390px] lg:w-[430px] xl:w-[460px]"
                     )}
                     onMouseDown={handleInteractionStart}
                     onTouchStart={handleInteractionStart}
                 >
-                    <div
-                        data-dial-container-child="true"
-                        className="absolute -top-1 -left-1 z-20"
-                        onMouseDown={(e: React.MouseEvent) => { e.stopPropagation(); }}
-                        onTouchStart={(e: React.TouchEvent) => { e.stopPropagation(); }}
-                    >
-                        <TimeUnitSwitch
-                            mode={displayUnitModeForSwitch}
-                            onUnitChange={handleUnitChange}
-                        />
-                    </div>
-                    
-
-                    {!isForcedFullscreen && (
-                        <Button
-                            data-dial-container-child="true"
-                            variant="secondary"
-                            size="icon"
-                            className="absolute -top-1 -right-1 z-20 h-8 w-8 rounded-full shadow-md bg-[hsl(300,100%,97%)] hover:bg-[hsl(300,100%,98%)] transition-transform duration-150 active:scale-95"
-                            onClick={handleFullscreenToggle}
-                            onMouseDown={(e: React.MouseEvent) => { e.stopPropagation(); }}
-                            onTouchStart={(e: React.TouchEvent) => { e.stopPropagation(); }}
-                            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-                        >
-                            {isFullscreen ? <Minimize className="h-4 w-4" color={INDIGO}/> : <Maximize className="h-4 w-4" color={INDIGO} />}
-                        </Button>
-                    )}
-
                     <svg width="100%" height="100%" viewBox={`0 0 ${SIZE} ${SIZE}`}>
                         <defs>
                             <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
@@ -1381,38 +1257,62 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                         )}
                     </svg>
                 </div>
-                </div>
-            </div>
-
-            <div className={cn(
-                "mt-4 w-full flex flex-col items-center gap-6 transition-opacity duration-200",
-                !isUIVisible && "pointer-events-none opacity-0"
-            )}>
-                <Button
-                    variant="secondary"
-                    size="icon"
-                    className="rounded-full h-14 w-14 shadow-lg fill-[hsl(300,100%,97%)] hover:fill-[hsl(300,100%,97%)] bg-[hsl(300,100%,97%)] hover:bg-[hsl(300,100%,98%)] transition-transform duration-150 active:scale-95"
-                    onClick={handleMuteToggle}
-                    aria-label={isMuted ? 'Unmute' : 'Mute'}
-                >
-                    {isMuted ? <VolumeX className="h-6 w-6" color={INDIGO} /> : <Volume2 className="h-6 w-6" color={INDIGO} />}
-                </Button>
-                <div className="h-16 w-full flex items-center justify-center px-4">
-                    {!isMuted && !isSoundHintDismissed && (
-                        <div className="relative w-full rounded-lg bg-background shadow-md px-4 py-2 text-xs text-muted-foreground leading-snug text-center">
-                            {getNotificationHint()}
-                            <button
-                                className="absolute top-1 right-1 p-0.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                                onClick={(e) => { e.stopPropagation(); setIsSoundHintDismissed(true); }}
-                                aria-label="Schließen"
-                            >
-                                <X className="h-3 w-3" />
-                            </button>
-                        </div>
-                    )}
-                </div>
-            </div>
         </div>
+
+        {/* Fixed button group: top-right */}
+        {hasMounted && (
+            <>
+                {isForcedFullscreen ? (
+                    /* Forced fullscreen: volume bottom-left, min/sec switch bottom-right */
+                    <>
+                        <Button
+                            variant="secondary"
+                            size="icon"
+                            className="fixed z-50 bottom-4 left-4 h-10 w-10 rounded-full shadow-md bg-[hsl(300,100%,97%)] hover:bg-[hsl(300,100%,98%)] transition-transform duration-150 active:scale-95"
+                            onClick={handleMuteToggle}
+                            aria-label={isMuted ? 'Unmute' : 'Mute'}
+                        >
+                            {isMuted ? <VolumeX className="h-5 w-5" color={INDIGO} /> : <Volume2 className="h-5 w-5" color={INDIGO} />}
+                        </Button>
+                        <TimeUnitSwitch
+                            mode={displayUnitModeForSwitch}
+                            onUnitChange={handleUnitChange}
+                            className="fixed z-50 bottom-4 right-4 h-10"
+                        />
+                    </>
+                ) : (
+                    /* Normal: all buttons centered at bottom */
+                    <div className="fixed z-50 flex items-center gap-2 bottom-16 left-1/2 -translate-x-1/2">
+                        {/* [🔊] sound button */}
+                        <Button
+                            variant="secondary"
+                            size="icon"
+                            className="h-10 w-10 rounded-full shadow-md bg-[hsl(300,100%,97%)] hover:bg-[hsl(300,100%,98%)] transition-transform duration-150 active:scale-95"
+                            onClick={handleMuteToggle}
+                            aria-label={isMuted ? 'Unmute' : 'Mute'}
+                        >
+                            {isMuted ? <VolumeX className="h-5 w-5" color={INDIGO} /> : <Volume2 className="h-5 w-5" color={INDIGO} />}
+                        </Button>
+                        {/* [min|sec] unit switch */}
+                        <TimeUnitSwitch
+                            mode={displayUnitModeForSwitch}
+                            onUnitChange={handleUnitChange}
+                            className="h-10"
+                        />
+                        {/* [⛶] fullscreen button */}
+                        <Button
+                            variant="secondary"
+                            size="icon"
+                            className="h-10 w-10 rounded-full shadow-md bg-[hsl(300,100%,97%)] hover:bg-[hsl(300,100%,98%)] transition-transform duration-150 active:scale-95"
+                            onClick={handleFullscreenToggle}
+                            aria-label={isFullscreen ? 'Vollbild verlassen' : 'Vollbild'}
+                        >
+                            {isFullscreen ? <Minimize className="h-5 w-5" color={INDIGO} /> : <Maximize className="h-5 w-5" color={INDIGO} />}
+                        </Button>
+                    </div>
+                )}
+            </>
+        )}
 
         {hasMounted && animationState === 'bursting' && burstOrigin && createPortal(
             <Confetti

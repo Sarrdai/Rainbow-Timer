@@ -83,7 +83,7 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="relative h-screen w-full flex flex-col items-center justify-center gap-6 sm:gap-8 lg:gap-10 p-4 pb-12 text-center overflow-hidden">
+    <main className="relative h-screen w-full overflow-hidden">
       {confettiBursts.map(burst => (
           <TitleConfetti
               key={burst.id}
@@ -93,8 +93,14 @@ export default function Home() {
               }}
           />
       ))}
+
+      {/* Title: fixed above the viewport-centered dial.
+          Dial half-sizes per breakpoint: 160 / 175 / 195 / 215 / 230 px
+          Gap between title and dial: 24 / 32 / 32 / 40 / 40 px
+          +1 RainbowWord line-height: text-4xl=40px (default/sm), text-5xl=48px (md+) */}
       <div className={cn(
-        "flex-shrink-0 transition-opacity duration-200",
+        "fixed left-0 right-0 z-[45] flex justify-center text-center transition-opacity duration-200",
+        "bottom-[calc(50%+224px)] sm:bottom-[calc(50%+247px)] md:bottom-[calc(50%+275px)] lg:bottom-[calc(50%+303px)] xl:bottom-[calc(50%+318px)]",
         !isTitleAndFooterVisible && "pointer-events-none opacity-0"
       )}>
         <div
@@ -120,7 +126,7 @@ export default function Home() {
         titleRef={titleRef}
       />
 
-      <div className={cn("absolute bottom-4 left-1/2 -translate-x-1/2 w-full transition-opacity duration-200", !isTitleAndFooterVisible && "pointer-events-none opacity-0")}>
+      <div className={cn("fixed bottom-4 left-1/2 -translate-x-1/2 w-full transition-opacity duration-200", !isTitleAndFooterVisible && "pointer-events-none opacity-0")}>
         <Footer />
       </div>
     </main>
