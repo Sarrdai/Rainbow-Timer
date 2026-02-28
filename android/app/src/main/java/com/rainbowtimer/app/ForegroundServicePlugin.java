@@ -70,6 +70,13 @@ public class ForegroundServicePlugin extends Plugin {
         serviceIntent.setAction("UPDATE");
         serviceIntent.putExtra("remainingMs", remainingMs);
 
+        // Optional maxTimeMs — forward if provided (used when mode changes during background,
+        // e.g. auto-switch from hr → min resets the reference cycle to 3_600_000).
+        Double maxTimeMsRaw = call.getDouble("maxTimeMs", -1.0);
+        if (maxTimeMsRaw != null && maxTimeMsRaw > 0) {
+            serviceIntent.putExtra("maxTimeMs", Math.round(maxTimeMsRaw));
+        }
+
         getContext().startService(serviceIntent);
 
         call.resolve();

@@ -4,55 +4,69 @@ import { cn } from "@/lib/utils";
 import React from "react";
 
 interface TimeUnitSwitchProps {
-  mode: "min" | "sec" | "auto-sec";
-  onUnitChange: (unit: "min" | "sec") => void;
+  mode: "hr" | "min" | "sec" | "auto-min" | "auto-sec";
+  onUnitChange: (unit: "hr" | "min" | "sec") => void;
   className?: string;
 }
 
 export function TimeUnitSwitch({ mode, onUnitChange, className }: TimeUnitSwitchProps) {
-  // In `auto-sec` mode, the switch physically remains on 'min', while 'sec' pulses.
-  const isPhysicallyOnSec = mode === "sec";
+  const isPhysicallyOnHr = mode === "hr";
+  const isPhysicallyOnMin = mode === "min" || mode === "auto-min";
+  const isPhysicallyOnSec = mode === "sec" || mode === "auto-sec";
 
-  // The 'min' text is active when the slider is physically on 'min'.
-  const isMinTextActive = !isPhysicallyOnSec;
-  
-  // The 'sec' text is active only when the slider is physically on 'sec'.
-  const isSecTextActive = isPhysicallyOnSec;
-  
-  const isAutoSec = mode === 'auto-sec';
+  const isAutoMin = mode === "auto-min";
+  const isAutoSec = mode === "auto-sec";
+
+  const sliderTranslate = isPhysicallyOnSec
+    ? "translate-x-[76px]"
+    : isPhysicallyOnMin
+    ? "translate-x-[38px]"
+    : "translate-x-0";
 
   return (
     <div
       className={cn(
-        "relative flex h-8 w-20 cursor-pointer items-center rounded-full bg-[hsl(300,100%,97%)] p-0.5 shadow-md",
+        "relative flex h-8 w-[116px] cursor-pointer items-center rounded-full bg-[hsl(300,100%,97%)] p-0.5 shadow-md",
         className
       )}
     >
       {/* Sliding indicator */}
       <div
         className={cn(
-          "absolute h-[calc(100%-4px)] w-[38px] rounded-full bg-background shadow-sm transition-transform duration-300 ease-in-out",
-          isPhysicallyOnSec ? "translate-x-[38px]" : "translate-x-0"
+          "absolute h-[calc(100%-4px)] w-[36px] rounded-full bg-background shadow-sm transition-transform duration-300 ease-in-out",
+          sliderTranslate
         )}
       />
 
-      {/* Clickable areas and text */}
+      {/* hr button */}
+      <button
+        onClick={() => onUnitChange("hr")}
+        className={cn(
+          "relative z-10 flex h-full w-[36px] items-center justify-center select-none text-sm font-bold transition-colors duration-300",
+          isPhysicallyOnHr ? "text-foreground" : "text-muted-foreground"
+        )}
+      >
+        hr
+      </button>
+
+      {/* min button */}
       <button
         onClick={() => onUnitChange("min")}
         className={cn(
-          "relative z-10 flex h-full flex-1 items-center justify-center select-none text-sm font-bold transition-colors duration-300",
-          isMinTextActive ? "text-foreground" : "text-muted-foreground"
+          "relative z-10 flex h-full w-[36px] items-center justify-center select-none text-sm font-bold transition-colors duration-300",
+          isPhysicallyOnMin ? "text-foreground" : "text-muted-foreground",
+          isAutoMin && "animate-pulse-strong text-foreground"
         )}
       >
         min
       </button>
 
+      {/* sec button */}
       <button
         onClick={() => onUnitChange("sec")}
         className={cn(
-          "relative z-10 flex h-full flex-1 items-center justify-center select-none text-sm font-bold transition-colors duration-300",
-          isSecTextActive ? "text-foreground" : "text-muted-foreground",
-          // When in auto-sec mode, the 'sec' text pulses with the active color to indicate a temporary state.
+          "relative z-10 flex h-full w-[36px] items-center justify-center select-none text-sm font-bold transition-colors duration-300",
+          isPhysicallyOnSec ? "text-foreground" : "text-muted-foreground",
           isAutoSec && "animate-pulse-strong text-foreground"
         )}
       >

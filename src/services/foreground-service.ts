@@ -7,14 +7,16 @@ export interface ForegroundServicePlugin {
    *                   Matches the rainbow reference period:
    *                     60s mode:   60_000
    *                     60min mode: 3_600_000
-   *                     Future 12h: 43_200_000
+   *                     12h mode:   43_200_000
    */
   startForegroundService(options: { endTime: number; totalDurationMs: number; maxTimeMs: number }): Promise<void>;
 
   /**
-   * Update the foreground notification with remaining time
+   * Update the foreground notification with remaining time.
+   * @param maxTimeMs  Optional new reference cycle duration. Pass when mode changes
+   *                   during background (e.g. auto-switch from hr to min).
    */
-  updateForegroundNotification(options: { remainingMs: number }): Promise<void>;
+  updateForegroundNotification(options: { remainingMs: number; maxTimeMs?: number }): Promise<void>;
 
   /**
    * Stop the foreground service
@@ -43,8 +45,8 @@ const ForegroundService = registerPlugin<ForegroundServicePlugin>('ForegroundSer
 /**
  * Start the foreground service for Android timer tracking.
  * @param maxTimeMs  Reference cycle duration for all progress indicators.
- *                   Pass MAX_TIME_SEC_MS (60_000) or MAX_TIME_MIN_MS (3_600_000) based on
- *                   the current mode. Future 12h mode: pass 43_200_000.
+ *                   Pass MAX_TIME_SEC_MS (60_000), MAX_TIME_MIN_MS (3_600_000),
+ *                   or MAX_TIME_HR_MS (43_200_000) based on the current mode.
  */
 export async function startTimerForegroundService(endTime: number, totalDurationMs: number, maxTimeMs: number): Promise<void> {
   if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') {
@@ -60,15 +62,19 @@ export async function startTimerForegroundService(endTime: number, totalDuration
 }
 
 /**
- * Update the foreground notification with current remaining time
+ * Update the foreground notification with current remaining time.
+ * @param maxTimeMs  Optional new reference cycle duration. Pass when mode changes
+ *                   during background (e.g. auto-switch from hr to min).
  */
-export async function updateTimerNotification(remainingMs: number): Promise<void> {
+export async function updateTimerNotification(remainingMs: number, maxTimeMs?: number): Promise<void> {
   if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') {
     return;
   }
 
   try {
-    await ForegroundService.updateForegroundNotification({ remainingMs });
+    const options: { remainingMs: number; maxTimeMs?: number } = { remainingMs };
+    if (maxTimeMs !== undefined) options.maxTimeMs = maxTimeMs;
+    await ForegroundService.updateForegroundNotification(options);
   } catch (error) {
     console.error('Error updating foreground notification:', error);
   }

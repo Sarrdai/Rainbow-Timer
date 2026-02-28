@@ -18,7 +18,8 @@ import { keepAwake, allowSleep } from '@/services/wake-lock';
 import { isNativePlatform, isAndroid } from '@/services/platform-utils';
 import {
   startTimerForegroundService,
-  stopTimerForegroundService
+  stopTimerForegroundService,
+  updateTimerNotification
 } from '@/services/foreground-service';
 import {
   shouldShowBatteryDialog,
@@ -32,8 +33,24 @@ const RAINBOW_OUTER_RADIUS = DIAL_RADIUS + 0.5;
 const LABEL_RADIUS = DIAL_RADIUS + 20;
 const TICK_START_RADIUS = DIAL_RADIUS - 8;
 const TICK_END_RADIUS = DIAL_RADIUS;
+const MAX_TIME_HR_MS = 12 * 60 * 60 * 1000;
 const MAX_TIME_MIN_MS = 60 * 60 * 1000;
 const MAX_TIME_SEC_MS = 60 * 1000;
+const HR_SNAP_UNIT_MS = 5 * 60 * 1000;
+
+function getMaxTimeMs(unit: 'hr' | 'min' | 'sec'): number {
+    if (unit === 'hr') return MAX_TIME_HR_MS;
+    if (unit === 'min') return MAX_TIME_MIN_MS;
+    return MAX_TIME_SEC_MS;
+}
+
+interface Particle {
+    key: string;
+    startX: number; startY: number;
+    dx: number; dy: number;
+    color: string; r: number;
+    duration: number; delay: number;
+}
 const INNER_WHITE_RADIUS = RAINBOW_OUTER_RADIUS * 0.47;
 
 const CENTER_CIRCLE_RADIUS = DIAL_RADIUS * 0.25;
@@ -122,10 +139,11 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
 
     const lastTickSecond = useRef<number | null>(null);
 
-    const [timeUnit, setTimeUnit] = useState<'min' | 'sec'>('min');
+    const [timeUnit, setTimeUnit] = useState<'hr' | 'min' | 'sec'>('min');
     const [isDetailView, setIsDetailView] = useState(false);
-    
+
     const [isTransitioningToAutoSec, setIsTransitioningToAutoSec] = useState(false);
+    const [isTransitioningToAutoMin, setIsTransitioningToAutoMin] = useState(false);
     
     const isPartyModeRef = useRef(isPartyMode);
     isPartyModeRef.current = isPartyMode;
@@ -137,11 +155,26 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     isDetailViewRef.current = isDetailView;
 
     const wasAutoSwitchedRef = useRef(false);
-    const displayUnitModeForSwitch = wasAutoSwitchedRef.current ? "auto-sec" : (timeUnit === 'sec' ? "sec" : "min");
+    const wasAutoSwitchedToMinRef = useRef(false);
+
+    const displayUnitModeForSwitch = wasAutoSwitchedRef.current ? "auto-sec"
+        : wasAutoSwitchedToMinRef.current ? "auto-min"
+        : timeUnit === 'sec' ? "sec"
+        : timeUnit === 'hr' ? "hr"
+        : "min";
 
     const [secModeProgress, setSecModeProgress] = useState(0);
     const secModeProgressRef = useRef(0);
     const secModeAnimRef = useRef<number | null>(null);
+
+    const [hrModeProgress, setHrModeProgress] = useState(0);
+    const hrModeProgressRef = useRef(0);
+    const hrModeAnimRef = useRef<number | null>(null);
+
+    const [explosionParticles, setExplosionParticles] = useState<Particle[]>([]);
+    const explosionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const explosionCounterRef = useRef(0);
+    const prevTimeUnitRef = useRef<'hr' | 'min' | 'sec'>('min');
 
     const onInterruptCelebrationRef = useRef(onInterruptCelebration);
     onInterruptCelebrationRef.current = onInterruptCelebration;
@@ -247,6 +280,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
 
     const cancelAllTimersAndAnimations = useCallback(() => {
         setIsTransitioningToAutoSec(false);
+        setIsTransitioningToAutoMin(false);
         if (countdownFrameId.current) {
           cancelAnimationFrame(countdownFrameId.current);
           countdownFrameId.current = null;
@@ -283,7 +317,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         cancelAllTimersAndAnimations();
         stopCelebrationAndReset();
         lastTickSecond.current = null;
-        const currentMaxTime = timeUnitRef.current === 'min' ? MAX_TIME_MIN_MS : MAX_TIME_SEC_MS;
+        const currentMaxTime = getMaxTimeMs(timeUnitRef.current);
 
         if (angleToSet > 0.1) {
           const duration = (angleToSet / 360) * currentMaxTime;
@@ -358,6 +392,10 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             setIsDetailView(false);
             wasAutoSwitchedRef.current = false;
         }
+        if (wasAutoSwitchedToMinRef.current) {
+            setTimeUnit('hr');
+            wasAutoSwitchedToMinRef.current = false;
+        }
     }, []);
 
     useEffect(() => {
@@ -376,8 +414,8 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
           const remaining = endTime - Date.now();
           
           if (remaining > 0 && duration > 0) {
-            const currentUnit = storedUnit || 'min';
-            
+            const currentUnit = (storedUnit as 'hr' | 'min' | 'sec') || 'min';
+
              setTimeUnit(currentUnit);
              setIsDetailView(currentUnit === 'sec');
 
@@ -445,6 +483,105 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             }
         };
     }, [timeUnit, isDetailView]);
+
+    // Animate hrModeProgress (0=not-hr, 1=hr) over 600ms when hr mode changes
+    useEffect(() => {
+        const targetProgress = timeUnit === 'hr' ? 1 : 0;
+
+        if (hrModeAnimRef.current) {
+            cancelAnimationFrame(hrModeAnimRef.current);
+            hrModeAnimRef.current = null;
+        }
+
+        if (hrModeProgressRef.current === targetProgress) return;
+
+        const DURATION = 600;
+        const startProgress = hrModeProgressRef.current;
+        let startTime: number | null = null;
+
+        const animate = (currentTime: number) => {
+            if (startTime === null) startTime = currentTime;
+            const elapsed = currentTime - startTime;
+            const t = Math.min(elapsed / DURATION, 1);
+            const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+            const newProgress = startProgress + (targetProgress - startProgress) * eased;
+            hrModeProgressRef.current = newProgress;
+            setHrModeProgress(newProgress);
+            if (t < 1) {
+                hrModeAnimRef.current = requestAnimationFrame(animate);
+            } else {
+                hrModeAnimRef.current = null;
+            }
+        };
+
+        hrModeAnimRef.current = requestAnimationFrame(animate);
+
+        return () => {
+            if (hrModeAnimRef.current) {
+                cancelAnimationFrame(hrModeAnimRef.current);
+                hrModeAnimRef.current = null;
+            }
+        };
+    }, [timeUnit]);
+
+    // Confetti explosion on hr mode transitions
+    useEffect(() => {
+        const prev = prevTimeUnitRef.current;
+        const curr = timeUnit;
+        prevTimeUnitRef.current = curr;
+
+        const shouldExplode = (prev === 'hr' && curr !== 'hr') || (prev !== 'hr' && curr === 'hr');
+        if (!shouldExplode) return;
+
+        if (explosionTimeoutRef.current) {
+            clearTimeout(explosionTimeoutRef.current);
+            explosionTimeoutRef.current = null;
+        }
+
+        const newParticles: Particle[] = [];
+        explosionCounterRef.current++;
+        const batchId = explosionCounterRef.current;
+
+        for (let labelIndex = 0; labelIndex < 12; labelIndex++) {
+            const hrValue = labelIndex + 1;
+            const angleDeg = (hrValue / 12) * 360;
+            const labelPos = polarToCartesian(CENTER, CENTER, LABEL_RADIUS, angleDeg);
+            const delay = labelIndex * 6;
+            const count = 8 + Math.floor(Math.random() * 5);
+
+            for (let p = 0; p < count; p++) {
+                const baseAngleDeg = Math.random() * 360;
+                const jitter = (Math.random() - 0.5) * 30;
+                const particleAngleDeg = baseAngleDeg + jitter;
+                const particleAngleRad = (particleAngleDeg * Math.PI) / 180;
+                const speed = 12 + Math.random() * 18;
+                const dx = Math.cos(particleAngleRad) * speed;
+                const dy = Math.sin(particleAngleRad) * speed;
+                const color = numberColors[(labelIndex + p) % numberColors.length];
+                const r = 1.5 + Math.random() * 2.5;
+                const duration = 400 + Math.random() * 300;
+                newParticles.push({
+                    key: `exp-${batchId}-${labelIndex}-${p}`,
+                    startX: labelPos.x,
+                    startY: labelPos.y,
+                    dx, dy, color, r, duration, delay,
+                });
+            }
+        }
+
+        setExplosionParticles(newParticles);
+
+        explosionTimeoutRef.current = setTimeout(() => {
+            setExplosionParticles([]);
+            explosionTimeoutRef.current = null;
+        }, 700);
+
+        return () => {
+            if (explosionTimeoutRef.current) {
+                clearTimeout(explosionTimeoutRef.current);
+            }
+        };
+    }, [timeUnit]);
 
     const handleFullscreenToggle = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -537,8 +674,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                 const remaining = td.duration - (Date.now() - td.startTime);
                 if (remaining > 0) {
                     // maxTimeMs: reference cycle matching the rainbow fill reference.
-                    // Future 12h mode: add a third branch here.
-                    const maxTimeMs = timeUnitRef.current === 'sec' ? MAX_TIME_SEC_MS : MAX_TIME_MIN_MS;
+                    const maxTimeMs = getMaxTimeMs(timeUnitRef.current);
                     startTimerForegroundService(Date.now() + remaining, td.duration, maxTimeMs);
                 }
             } else if (document.visibilityState === 'visible') {
@@ -561,22 +697,65 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
       }
 
       setIsTransitioningToAutoSec(false);
+      setIsTransitioningToAutoMin(false);
+      wasAutoSwitchedToMinRef.current = false;
       stopCelebrationAndReset();
       cancelAllTimersAndAnimations();
       resetAutoSwitchMode();
-      
+
       const newAngle = (value / 60) * 360;
       animateAngle(newAngle, true, 'set');
     }, [stopCelebrationAndReset, cancelAllTimersAndAnimations, animateAngle, resetAutoSwitchMode]);
 
-    const handleUnitChange = useCallback((newUnit: "min" | "sec") => {
+    const handleUnitChange = useCallback((newUnit: "hr" | "min" | "sec") => {
+        // In auto-sec mode (timer auto-switched from min to sec)
         if (wasAutoSwitchedRef.current) {
+            if (newUnit === "hr") {
+                // Full reset back to hr mode
+                cancelAllTimersAndAnimations();
+                stopCelebrationAndReset();
+                wasAutoSwitchedRef.current = false;
+                wasAutoSwitchedToMinRef.current = false;
+                setTimeUnit('hr');
+                setIsDetailView(false);
+                setAngle(0);
+                return;
+            }
             if (newUnit === "min") {
+                return; // no-op (already past min)
+            }
+            if (newUnit === "sec") {
+                // Confirm explicit sec mode
+                cancelAllTimersAndAnimations();
+                stopCelebrationAndReset();
+                wasAutoSwitchedRef.current = false;
+                setTimeUnit('sec');
+                setIsDetailView(true);
+                setAngle(0);
+                return;
+            }
+        }
+
+        // In auto-min mode (timer auto-switched from hr to min)
+        if (wasAutoSwitchedToMinRef.current) {
+            if (newUnit === "hr") {
+                return; // no-op (still counting down, will auto-switch further)
+            }
+            if (newUnit === "min") {
+                // Confirm min as permanent mode
+                cancelAllTimersAndAnimations();
+                stopCelebrationAndReset();
+                wasAutoSwitchedToMinRef.current = false;
+                setTimeUnit('min');
+                setIsDetailView(false);
+                setAngle(0);
                 return;
             }
             if (newUnit === "sec") {
+                // Jump ahead to sec mode
                 cancelAllTimersAndAnimations();
                 stopCelebrationAndReset();
+                wasAutoSwitchedToMinRef.current = false;
                 wasAutoSwitchedRef.current = false;
                 setTimeUnit('sec');
                 setIsDetailView(true);
@@ -589,12 +768,13 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
 
         cancelAllTimersAndAnimations();
         stopCelebrationAndReset();
-        
+
         wasAutoSwitchedRef.current = false;
+        wasAutoSwitchedToMinRef.current = false;
         setTimeUnit(newUnit);
         setIsDetailView(newUnit === 'sec');
         setAngle(0);
-      }, [cancelAllTimersAndAnimations, stopCelebrationAndReset]);
+    }, [cancelAllTimersAndAnimations, stopCelebrationAndReset]);
 
     const pauseTimer = useCallback(() => {
         if (countdownFrameId.current) {
@@ -602,6 +782,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             countdownFrameId.current = null;
         }
         setIsTransitioningToAutoSec(false);
+        setIsTransitioningToAutoMin(false);
         setTimeData(null);
         lastTickSecond.current = null;
 
@@ -710,10 +891,11 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         if (!isDraggingRef.current) return;
 
         const currentUnit = timeUnitRef.current;
-        const currentMaxTime = currentUnit === 'min' ? MAX_TIME_MIN_MS : MAX_TIME_SEC_MS;
+        const currentMaxTime = getMaxTimeMs(currentUnit);
         const duration = (angleRef.current / 360) * currentMaxTime;
 
-        const roundingUnitMs = currentUnit === 'min' ? 60 * 1000 : 1000;
+        const roundingUnitMs = currentUnit === 'hr' ? HR_SNAP_UNIT_MS
+            : currentUnit === 'min' ? 60 * 1000 : 1000;
         const roundedDuration = Math.round(duration / roundingUnitMs) * roundingUnitMs;
 
         const snappedAngle = roundedDuration > 0 ? (roundedDuration / currentMaxTime) * 360 : 0;
@@ -752,14 +934,15 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         
         if (!interruptedRef.current) {
             const currentUnit = timeUnitRef.current;
-            const currentMaxTime = currentUnit === 'min' ? MAX_TIME_MIN_MS : MAX_TIME_SEC_MS;
+            const currentMaxTime = getMaxTimeMs(currentUnit);
             const duration = (angleRef.current / 360) * currentMaxTime;
-            
-            const roundingUnitMs = currentUnit === 'min' ? 60 * 1000 : 1000;
+
+            const roundingUnitMs = currentUnit === 'hr' ? HR_SNAP_UNIT_MS
+                : currentUnit === 'min' ? 60 * 1000 : 1000;
             const roundedDuration = Math.round(duration / roundingUnitMs) * roundingUnitMs;
 
             const snappedAngle = roundedDuration > 0 ? (roundedDuration / currentMaxTime) * 360 : 0;
-            
+
             animateAngle(snappedAngle, true, 'set');
         }
         
@@ -868,7 +1051,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
 
     // Countdown loop
     useEffect(() => {
-        if (timeData === null || isTransitioningToAutoSec) {
+        if (timeData === null || isTransitioningToAutoSec || isTransitioningToAutoMin) {
             if (countdownFrameId.current) {
                 cancelAnimationFrame(countdownFrameId.current);
                 countdownFrameId.current = null;
@@ -877,12 +1060,18 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         }
 
         let isCancelled = false;
-        
+
         const animate = () => {
             if (isCancelled || !timeDataRef.current) return;
 
             const elapsed = Date.now() - timeDataRef.current.startTime;
             const remaining = timeDataRef.current.duration - elapsed;
+
+            // hr → auto-min: when remaining time fits within a min cycle
+            if (timeUnitRef.current === 'hr' && remaining <= MAX_TIME_MIN_MS && remaining > 0 && !isDraggingRef.current) {
+                setIsTransitioningToAutoMin(true);
+                return;
+            }
 
             if (timeUnitRef.current === 'min' && !isDetailViewRef.current && remaining <= MAX_TIME_SEC_MS && remaining > 0 && !isDraggingRef.current) {
                 setIsTransitioningToAutoSec(true);
@@ -925,12 +1114,12 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                     }
                     setAnimationState('bursting');
                     setIsCelebrating(true);
-                    
+
                     if (isPartyModeRef.current) {
                         setMountConfettiRain(true);
                         setIsRaining(true);
                     }
-                    
+
                     setTimeout(() => {
                         if (isCelebratingRef.current && !interruptedRef.current) {
                             setIsAlarmPlaying(true);
@@ -938,11 +1127,11 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                     }, 200);
                 }
             } else {
-                const currentMaxTime = timeUnitRef.current === 'sec' ? MAX_TIME_SEC_MS : MAX_TIME_MIN_MS;
+                const currentMaxTime = getMaxTimeMs(timeUnitRef.current);
                 const newAngle = (remaining / currentMaxTime) * 360;
                 setAngle(newAngle);
             }
-            
+
             countdownFrameId.current = requestAnimationFrame(animate);
         };
 
@@ -952,7 +1141,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             isCancelled = true;
             if (countdownFrameId.current) cancelAnimationFrame(countdownFrameId.current);
         };
-    }, [timeData, playSingleBeep, resetAutoSwitchMode, playBang, isTransitioningToAutoSec]);
+    }, [timeData, playSingleBeep, resetAutoSwitchMode, playBang, isTransitioningToAutoSec, isTransitioningToAutoMin]);
 
     // Dedicated effect for the transition to auto-sec mode
     useEffect(() => {
@@ -1007,6 +1196,64 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
       };
     }, [isTransitioningToAutoSec]);
 
+    // Dedicated effect for the transition to auto-min mode (hr → min)
+    useEffect(() => {
+        if (!isTransitioningToAutoMin) return;
+
+        if (countdownFrameId.current) {
+            cancelAnimationFrame(countdownFrameId.current);
+            countdownFrameId.current = null;
+        }
+
+        const DURATION = 500;
+        let animationStartTime: number | null = null;
+        const startAngle = angleRef.current;
+
+        const transitionAnimate = (currentTime: number) => {
+            if (animationStartTime === null) animationStartTime = currentTime;
+            const animElapsed = currentTime - animationStartTime;
+            const progress = Math.min(animElapsed / DURATION, 1);
+
+            const easedProgress = 1 - Math.pow(1 - progress, 3);
+            const newAngle = interpolateAngleForSet(startAngle, 0, easedProgress);
+
+            setAngle(newAngle);
+
+            if (progress < 1) {
+                countdownFrameId.current = requestAnimationFrame(transitionAnimate);
+            } else {
+                const currentTD = timeDataRef.current;
+                if (currentTD) {
+                    const elapsedFromStart = Date.now() - currentTD.startTime;
+                    const remaining = currentTD.duration - elapsedFromStart;
+
+                    // ATOMIC UPDATE
+                    wasAutoSwitchedToMinRef.current = true;
+                    setTimeUnit('min');
+                    setIsDetailView(false);
+
+                    const finalAngle = Math.max(0, (remaining / MAX_TIME_MIN_MS) * 360);
+                    setAngle(finalAngle);
+
+                    // Update Android notification to use min-mode reference cycle
+                    if (isAndroid()) {
+                        updateTimerNotification(remaining, MAX_TIME_MIN_MS);
+                    }
+                }
+                setIsTransitioningToAutoMin(false);
+            }
+        };
+
+        countdownFrameId.current = requestAnimationFrame(transitionAnimate);
+
+        return () => {
+            if (countdownFrameId.current) {
+                cancelAnimationFrame(countdownFrameId.current);
+                countdownFrameId.current = null;
+            }
+        };
+    }, [isTransitioningToAutoMin]);
+
     useEffect(() => {
         if (titleBangTrigger > 0) {
         playBang();
@@ -1052,8 +1299,8 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                 <circle cx={CENTER} cy={CENTER} r={DIAL_RADIUS} className="fill-[hsl(300,100%,97%)]" style={{ pointerEvents: 'none' }} />
             </g>
 
-            {/* 2. Ticks and Numbers Layer */}
-            <g>
+            {/* 2. Ticks and Numbers Layer — min/sec mode (fades out in hr mode) */}
+            <g opacity={1 - hrModeProgress}>
                 {Array.from({ length: 60 }).map((_, i) => {
                 if ((i + 1) % 5 === 0) return null;
                 const tickAngle = (i + 1) * 6;
@@ -1072,8 +1319,8 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                 );
                 })}
             </g>
-            
-            <g>
+
+            <g opacity={1 - hrModeProgress}>
                 {ticks.map((tick, i) => {
                 const tickAngle = (i + 1) * 30;
                 const start = polarToCartesian(CENTER, CENTER, TICK_START_RADIUS - 4 * secModeProgress, tickAngle);
@@ -1108,7 +1355,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                     </g>
                     );
                 }
-                
+
                 const colorOrderIndex = (tick / 5);
                 const color = numberColors[colorOrderIndex % numberColors.length];
 
@@ -1141,7 +1388,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                 })}
             </g>
 
-            {/* 2b. Half-second dot markers (appear in sec mode) */}
+            {/* 2b. Half-second dot markers (appear in sec mode, hidden in hr mode) */}
             {secModeProgress > 0 && (
                 <g>
                     {Array.from({ length: 60 }).map((_, i) => {
@@ -1155,13 +1402,92 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                                 cy={dotPos.y}
                                 r={1.125}
                                 fill={INDIGO}
-                                opacity={secModeProgress}
+                                opacity={secModeProgress * (1 - hrModeProgress)}
                                 style={{ pointerEvents: 'none' }}
                             />
                         );
                     })}
                 </g>
             )}
+
+            {/* 2c. Hr mode ticks (144 micro + 48 quarter-hour + 12 hour), cross-fades in */}
+            {hrModeProgress > 0 && (
+                <g opacity={hrModeProgress}>
+                    {/* 144 micro-ticks at 2.5° intervals, skip positions that land on 7.5° marks */}
+                    {Array.from({ length: 144 }).map((_, i) => {
+                        if ((i + 1) % 3 === 0) return null; // skip 7.5° positions
+                        const tickAngle = (i + 1) * 2.5;
+                        const start = polarToCartesian(CENTER, CENTER, DIAL_RADIUS - 3, tickAngle);
+                        const end = polarToCartesian(CENTER, CENTER, DIAL_RADIUS, tickAngle);
+                        return (
+                            <line key={`hr-micro-${i}`}
+                                x1={start.x} y1={start.y} x2={end.x} y2={end.y}
+                                stroke={INDIGO} strokeWidth="0.75" opacity="0.35"
+                                style={{ pointerEvents: 'none' }}
+                            />
+                        );
+                    })}
+                    {/* 48 quarter-hour ticks at 7.5° intervals, skip positions that land on 30° marks */}
+                    {Array.from({ length: 48 }).map((_, j) => {
+                        if ((j + 1) % 4 === 0) return null; // skip 30° (hour) positions
+                        const tickAngle = (j + 1) * 7.5;
+                        const start = polarToCartesian(CENTER, CENTER, DIAL_RADIUS - 5, tickAngle);
+                        const end = polarToCartesian(CENTER, CENTER, DIAL_RADIUS, tickAngle);
+                        return (
+                            <line key={`hr-quarter-${j}`}
+                                x1={start.x} y1={start.y} x2={end.x} y2={end.y}
+                                stroke={INDIGO} strokeWidth="1"
+                                style={{ pointerEvents: 'none' }}
+                            />
+                        );
+                    })}
+                    {/* 12 hour labels with major ticks and quick-set interaction */}
+                    {Array.from({ length: 12 }).map((_, k) => {
+                        const hrValue = k + 1;
+                        const tickAngle = (hrValue / 12) * 360;
+                        const start = polarToCartesian(CENTER, CENTER, TICK_START_RADIUS, tickAngle);
+                        const end = polarToCartesian(CENTER, CENTER, TICK_END_RADIUS, tickAngle);
+                        const labelPos = polarToCartesian(CENTER, CENTER, LABEL_RADIUS, tickAngle);
+                        const color = numberColors[k % numberColors.length];
+                        return (
+                            <g key={`hr-label-${hrValue}`}
+                                onMouseDown={(e) => handleQuickSet(e, hrValue * 5)}
+                                onTouchStart={(e) => handleQuickSet(e, hrValue * 5)}
+                                style={{ cursor: 'pointer' }}
+                                className="group quick-set-button"
+                            >
+                                <line
+                                    x1={start.x} y1={start.y} x2={end.x} y2={end.y}
+                                    stroke={INDIGO} strokeWidth="3.5"
+                                />
+                                <text
+                                    x={labelPos.x} y={labelPos.y}
+                                    textAnchor="middle" dominantBaseline="middle"
+                                    fontWeight="bold" fontSize="14"
+                                    fill={color}
+                                    filter="url(#text-shadow)"
+                                    className="transition-transform duration-150 ease-in-out group-hover:scale-125 group-active:scale-90"
+                                    style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+                                >
+                                    {hrValue}
+                                </text>
+                            </g>
+                        );
+                    })}
+                </g>
+            )}
+
+            {/* Confetti explosion particles on hr mode transitions */}
+            {explosionParticles.map((p) => (
+                <circle key={p.key} cx={p.startX} cy={p.startY} r={p.r} fill={p.color} style={{ pointerEvents: 'none' }}>
+                    <animateTransform attributeName="transform" type="translate"
+                        from="0 0" to={`${p.dx} ${p.dy}`}
+                        dur={`${p.duration}ms`} begin={`${p.delay}ms`} fill="freeze"
+                        calcMode="spline" keySplines="0.25 0.1 0.25 1" keyTimes="0;1" />
+                    <animate attributeName="opacity" from="1" to="0"
+                        dur={`${p.duration}ms`} begin={`${p.delay}ms`} fill="freeze" />
+                </circle>
+            ))}
 
             {/* 3. Animation Layer (covers background) */}
             {(animationState !== 'bursting' && !isCelebrating) && (

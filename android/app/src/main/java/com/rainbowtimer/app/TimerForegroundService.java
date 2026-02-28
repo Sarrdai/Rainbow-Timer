@@ -74,6 +74,11 @@ public class TimerForegroundService extends Service {
                 startForegroundService();
             } else if ("UPDATE".equals(action)) {
                 long remainingMs = intent.getLongExtra("remainingMs", 0);
+                // Apply new maxTimeMs if provided (e.g. auto-switch hr → min during background)
+                long newMaxTimeMs = intent.getLongExtra("maxTimeMs", -1L);
+                if (newMaxTimeMs > 0) {
+                    maxTimeMs = newMaxTimeMs;
+                }
                 updateNotification(remainingMs);
             } else if ("STOP".equals(action)) {
                 stopForegroundService();
