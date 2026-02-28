@@ -1,6 +1,7 @@
 package com.rainbowtimer.app;
 
 import android.content.Intent;
+import android.util.Log;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -9,22 +10,44 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 @CapacitorPlugin(name = "ForegroundService")
 public class ForegroundServicePlugin extends Plugin {
 
+    private static final String TAG = "RBT_FGS_Plugin";
+
+    @Override
+    public void load() {
+        Log.d(TAG, "ForegroundServicePlugin.load() called — plugin is registered and active");
+    }
+
     @PluginMethod
     public void startForegroundService(PluginCall call) {
+        Log.d(TAG, "startForegroundService called");
         Long endTime = call.getLong("endTime");
         if (endTime == null) {
+            Log.e(TAG, "endTime is null — rejecting");
             call.reject("Must provide endTime");
             return;
         }
+        // Use getDouble because JS Duration values are floats; round to long
+        long totalDurationMs = Math.round(call.getDouble("totalDurationMs", 0.0));
+        Log.d(TAG, "endTime=" + endTime + " totalDurationMs=" + totalDurationMs);
 
         Intent serviceIntent = new Intent(getContext(), TimerForegroundService.class);
         serviceIntent.setAction("START");
-        serviceIntent.putExtra("endTime", endTime);
+        serviceIntent.putExtra("endTime", (long) endTime);
+        serviceIntent.putExtra("totalDurationMs", (long) totalDurationMs);
 
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            getContext().startForegroundService(serviceIntent);
-        } else {
-            getContext().startService(serviceIntent);
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                Log.d(TAG, "calling startForegroundService (API >= O)");
+                getContext().startForegroundService(serviceIntent);
+            } else {
+                Log.d(TAG, "calling startService (API < O)");
+                getContext().startService(serviceIntent);
+            }
+            Log.d(TAG, "startForegroundService call succeeded");
+        } catch (Exception e) {
+            Log.e(TAG, "startForegroundService EXCEPTION: " + e.getMessage(), e);
+            call.reject("Service start failed: " + e.getMessage());
+            return;
         }
 
         call.resolve();
