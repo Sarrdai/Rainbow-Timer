@@ -49,7 +49,7 @@ interface Particle {
     startX: number; startY: number;
     dx: number; dy: number;
     color: string; r: number;
-    duration: number; delay: number;
+    duration: number; beginTimeSec: number;
 }
 const INNER_WHITE_RADIUS = RAINBOW_OUTER_RADIUS * 0.47;
 
@@ -107,6 +107,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     const timeDataRef = useRef(timeData);
     timeDataRef.current = timeData;
     const containerRef = useRef<HTMLDivElement>(null);
+    const svgRef = useRef<SVGSVGElement>(null);
     const countdownFrameId = useRef<number | null>(null);
     const lastDragAngle = useRef<number | null>(null);
     const interactionStartRef = useRef<{time: number, angle: number, wasRunning: boolean} | null>(null);
@@ -162,6 +163,16 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         : timeUnit === 'sec' ? "sec"
         : timeUnit === 'hr' ? "hr"
         : "min";
+
+    // Slider stays on the originally selected mode, not the auto-switched mode
+    const sliderModeForSwitch: "hr" | "min" | "sec" =
+        wasAutoSwitchedRef.current
+            ? (wasAutoSwitchedToMinRef.current ? "hr" : "min") // hr→auto-min→auto-sec stays hr; min→auto-sec stays min
+            : wasAutoSwitchedToMinRef.current
+            ? "hr" // hr→auto-min stays hr
+            : timeUnit === 'sec' ? "sec"
+            : timeUnit === 'hr' ? "hr"
+            : "min";
 
     const [secModeProgress, setSecModeProgress] = useState(0);
     const secModeProgressRef = useRef(0);
@@ -484,7 +495,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         };
     }, [timeUnit, isDetailView]);
 
-    // Animate hrModeProgress (0=not-hr, 1=hr) over 600ms when hr mode changes
+    // Snap hrModeProgress (0=not-hr, 1=hr) instantly when hr mode changes
     useEffect(() => {
         const targetProgress = timeUnit === 'hr' ? 1 : 0;
 
@@ -493,35 +504,8 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             hrModeAnimRef.current = null;
         }
 
-        if (hrModeProgressRef.current === targetProgress) return;
-
-        const DURATION = 600;
-        const startProgress = hrModeProgressRef.current;
-        let startTime: number | null = null;
-
-        const animate = (currentTime: number) => {
-            if (startTime === null) startTime = currentTime;
-            const elapsed = currentTime - startTime;
-            const t = Math.min(elapsed / DURATION, 1);
-            const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-            const newProgress = startProgress + (targetProgress - startProgress) * eased;
-            hrModeProgressRef.current = newProgress;
-            setHrModeProgress(newProgress);
-            if (t < 1) {
-                hrModeAnimRef.current = requestAnimationFrame(animate);
-            } else {
-                hrModeAnimRef.current = null;
-            }
-        };
-
-        hrModeAnimRef.current = requestAnimationFrame(animate);
-
-        return () => {
-            if (hrModeAnimRef.current) {
-                cancelAnimationFrame(hrModeAnimRef.current);
-                hrModeAnimRef.current = null;
-            }
-        };
+        hrModeProgressRef.current = targetProgress;
+        setHrModeProgress(targetProgress);
     }, [timeUnit]);
 
     // Confetti explosion on hr mode transitions
@@ -541,12 +525,13 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         const newParticles: Particle[] = [];
         explosionCounterRef.current++;
         const batchId = explosionCounterRef.current;
+        const svgNow = svgRef.current?.getCurrentTime() ?? 0;
 
         for (let labelIndex = 0; labelIndex < 12; labelIndex++) {
             const hrValue = labelIndex + 1;
             const angleDeg = (hrValue / 12) * 360;
             const labelPos = polarToCartesian(CENTER, CENTER, LABEL_RADIUS, angleDeg);
-            const delay = labelIndex * 6;
+            const delayMs = 0;
             const count = 8 + Math.floor(Math.random() * 5);
 
             for (let p = 0; p < count; p++) {
@@ -564,7 +549,8 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                     key: `exp-${batchId}-${labelIndex}-${p}`,
                     startX: labelPos.x,
                     startY: labelPos.y,
-                    dx, dy, color, r, duration, delay,
+                    dx, dy, color, r, duration,
+                    beginTimeSec: svgNow + delayMs / 1000,
                 });
             }
         }
@@ -722,7 +708,15 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                 return;
             }
             if (newUnit === "min") {
-                return; // no-op (already past min)
+                // Reset to min mode
+                cancelAllTimersAndAnimations();
+                stopCelebrationAndReset();
+                wasAutoSwitchedRef.current = false;
+                wasAutoSwitchedToMinRef.current = false;
+                setTimeUnit('min');
+                setIsDetailView(false);
+                setAngle(0);
+                return;
             }
             if (newUnit === "sec") {
                 // Confirm explicit sec mode
@@ -739,7 +733,15 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         // In auto-min mode (timer auto-switched from hr to min)
         if (wasAutoSwitchedToMinRef.current) {
             if (newUnit === "hr") {
-                return; // no-op (still counting down, will auto-switch further)
+                // Reset back to hr mode
+                cancelAllTimersAndAnimations();
+                stopCelebrationAndReset();
+                wasAutoSwitchedToMinRef.current = false;
+                wasAutoSwitchedRef.current = false;
+                setTimeUnit('hr');
+                setIsDetailView(false);
+                setAngle(0);
+                return;
             }
             if (newUnit === "min") {
                 // Confirm min as permanent mode
@@ -1482,10 +1484,10 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                 <circle key={p.key} cx={p.startX} cy={p.startY} r={p.r} fill={p.color} style={{ pointerEvents: 'none' }}>
                     <animateTransform attributeName="transform" type="translate"
                         from="0 0" to={`${p.dx} ${p.dy}`}
-                        dur={`${p.duration}ms`} begin={`${p.delay}ms`} fill="freeze"
+                        dur={`${p.duration}ms`} begin={`${p.beginTimeSec}s`} fill="freeze"
                         calcMode="spline" keySplines="0.25 0.1 0.25 1" keyTimes="0;1" />
                     <animate attributeName="opacity" from="1" to="0"
-                        dur={`${p.duration}ms`} begin={`${p.delay}ms`} fill="freeze" />
+                        dur={`${p.duration}ms`} begin={`${p.beginTimeSec}s`} fill="freeze" />
                 </circle>
             ))}
 
@@ -1580,7 +1582,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                     onMouseDown={handleInteractionStart}
                     onTouchStart={handleInteractionStart}
                 >
-                    <svg width="100%" height="100%" viewBox={`0 0 ${SIZE} ${SIZE}`}>
+                    <svg ref={svgRef} width="100%" height="100%" viewBox={`0 0 ${SIZE} ${SIZE}`}>
                         <defs>
                             <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
                                 <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="rgba(0,0,0,0.15)" />
@@ -1629,6 +1631,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                         </Button>
                         <TimeUnitSwitch
                             mode={displayUnitModeForSwitch}
+                            sliderMode={sliderModeForSwitch}
                             onUnitChange={handleUnitChange}
                             className="fixed z-50 bottom-4 right-4 h-10"
                         />
@@ -1649,6 +1652,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                         {/* [min|sec] unit switch */}
                         <TimeUnitSwitch
                             mode={displayUnitModeForSwitch}
+                            sliderMode={sliderModeForSwitch}
                             onUnitChange={handleUnitChange}
                             className="h-10"
                         />
