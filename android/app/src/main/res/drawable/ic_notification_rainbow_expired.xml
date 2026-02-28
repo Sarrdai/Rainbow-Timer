@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Regenbogen-Icon für abgelaufenen Timer: 3 konzentrische obere Halbkreise.
+  Basis der Bögen bei y=28, Mittelpunkt (18,28), Viewport 36×36.
+
+  Geometrie:
+    Äußerer Bogen (r=14): von (4,28)  über Scheitel (18,14) nach (32,28)
+    Mittlerer Bogen (r=9): von (9,28)  über Scheitel (18,19) nach (27,28)
+    Innerer Bogen  (r=4): von (14,28) über Scheitel (18,24) nach (22,28)
+
+  sweep-flag=1 → im Uhrzeigersinn auf dem Bildschirm, d.h. vom linken
+  Endpunkt aufwärts über den Scheitelpunkt zum rechten Endpunkt = obere
+  Kreishälfte. sweep-flag=0 wäre CCW = untere Hälfte (falsch).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="36"
+    android:viewportHeight="36">
+    <!-- Äußerer Bogen (r=14) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M 4,28 A 14,14 0 0 1 32,28" />
+    <!-- Mittlerer Bogen (r=9) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M 9,28 A 9,9 0 0 1 27,28" />
+    <!-- Innerer Bogen (r=4) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M 14,28 A 4,4 0 0 1 22,28" />
+</vector>

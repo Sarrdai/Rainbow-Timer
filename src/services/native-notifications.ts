@@ -110,6 +110,7 @@ export async function scheduleTimerNotification(
           {
             ...notification,
             sound: customSound,
+            smallIcon: 'ic_notification_rainbow_expired',
             // @ts-ignore - Android-specific properties
             channelId: 'timer-alerts',
             importance: 5, // IMPORTANCE_HIGH
