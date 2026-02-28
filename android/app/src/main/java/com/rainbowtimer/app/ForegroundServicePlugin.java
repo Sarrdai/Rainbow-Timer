@@ -26,14 +26,19 @@ public class ForegroundServicePlugin extends Plugin {
             call.reject("Must provide endTime");
             return;
         }
-        // Use getDouble because JS Duration values are floats; round to long
+        // Use getDouble because JS Duration values are floats; round to long.
         long totalDurationMs = Math.round(call.getDouble("totalDurationMs", 0.0));
-        Log.d(TAG, "endTime=" + endTime + " totalDurationMs=" + totalDurationMs);
+        // maxTimeMs: reference cycle for all progress indicators (icon + notification bar).
+        // Matches the rainbow reference: 60s=60_000, 60min=3_600_000, future 12h=43_200_000.
+        // Default: 60min, consistent with the app's default mode.
+        long maxTimeMs = Math.round(call.getDouble("maxTimeMs", 3_600_000.0));
+        Log.d(TAG, "endTime=" + endTime + " totalDurationMs=" + totalDurationMs + " maxTimeMs=" + maxTimeMs);
 
         Intent serviceIntent = new Intent(getContext(), TimerForegroundService.class);
         serviceIntent.setAction("START");
         serviceIntent.putExtra("endTime", (long) endTime);
         serviceIntent.putExtra("totalDurationMs", (long) totalDurationMs);
+        serviceIntent.putExtra("maxTimeMs", maxTimeMs);
 
         try {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
