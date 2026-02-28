@@ -536,7 +536,10 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                 if (!td) return;
                 const remaining = td.duration - (Date.now() - td.startTime);
                 if (remaining > 0) {
-                    startTimerForegroundService(Date.now() + remaining, td.duration);
+                    // maxTimeMs: reference cycle matching the rainbow fill reference.
+                    // Future 12h mode: add a third branch here.
+                    const maxTimeMs = timeUnitRef.current === 'sec' ? MAX_TIME_SEC_MS : MAX_TIME_MIN_MS;
+                    startTimerForegroundService(Date.now() + remaining, td.duration, maxTimeMs);
                 }
             } else if (document.visibilityState === 'visible') {
                 stopTimerForegroundService();
