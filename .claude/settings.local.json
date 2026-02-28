@@ -28,7 +28,8 @@
       "Bash(xargs grep:*)",
       "Bash(python3:*)",
       "Bash(node:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(git:*)"
     ]
   }
 }

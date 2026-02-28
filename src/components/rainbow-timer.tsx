@@ -131,6 +131,12 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     const [burstOrigin, setBurstOrigin] = useState<{ x: number, y: number } | null>(null);
     
     const interruptedRef = useRef(false);
+    // Set when the app returns to foreground and the timer already expired in background.
+    // Cleared once the countdown loop picks it up.
+    const timerExpiredInBgRef = useRef(false);
+    // Set for the duration of a celebration that was triggered by a background expiry.
+    // Suppresses the looping alarm and the onInterruptCelebration confetti burst.
+    const silentCelebrationRef = useRef(false);
     const isCelebratingRef = useRef(isCelebrating);
     isCelebratingRef.current = isCelebrating;
     const animationStateRef = useRef(animationState);
@@ -245,16 +251,21 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             return;
         }
 
+        const isSilent = silentCelebrationRef.current;
+        silentCelebrationRef.current = false;
+
         const isTitleClick = e && titleRef.current?.contains(e.target as Node);
-        
-        if (e && !isTitleClick) {
-            if ('clientX' in e) { // React.MouseEvent | MouseEvent
-                 onInterruptCelebrationRef.current(e as MouseEvent);
-            } else { // React.TouchEvent | TouchEvent
-                 onInterruptCelebrationRef.current(e as TouchEvent);
+
+        if (!isSilent) {
+            if (e && !isTitleClick) {
+                if ('clientX' in e) { // React.MouseEvent | MouseEvent
+                     onInterruptCelebrationRef.current(e as MouseEvent);
+                } else { // React.TouchEvent | TouchEvent
+                     onInterruptCelebrationRef.current(e as TouchEvent);
+                }
+            } else {
+                 playBang();
             }
-        } else {
-             playBang();
         }
 
         interruptedRef.current = true;
@@ -495,7 +506,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         };
     }, [timeUnit, isDetailView]);
 
-    // Snap hrModeProgress (0=not-hr, 1=hr) instantly when hr mode changes
+    // Animate hrModeProgress (0=not-hr, 1=hr) over 350ms when hr mode changes
     useEffect(() => {
         const targetProgress = timeUnit === 'hr' ? 1 : 0;
 
@@ -504,8 +515,35 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             hrModeAnimRef.current = null;
         }
 
-        hrModeProgressRef.current = targetProgress;
-        setHrModeProgress(targetProgress);
+        if (hrModeProgressRef.current === targetProgress) return;
+
+        const DURATION = 350;
+        const startProgress = hrModeProgressRef.current;
+        let startTime: number | null = null;
+
+        const animate = (currentTime: number) => {
+            if (startTime === null) startTime = currentTime;
+            const elapsed = currentTime - startTime;
+            const t = Math.min(elapsed / DURATION, 1);
+            const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+            const newProgress = startProgress + (targetProgress - startProgress) * eased;
+            hrModeProgressRef.current = newProgress;
+            setHrModeProgress(newProgress);
+            if (t < 1) {
+                hrModeAnimRef.current = requestAnimationFrame(animate);
+            } else {
+                hrModeAnimRef.current = null;
+            }
+        };
+
+        hrModeAnimRef.current = requestAnimationFrame(animate);
+
+        return () => {
+            if (hrModeAnimRef.current) {
+                cancelAnimationFrame(hrModeAnimRef.current);
+                hrModeAnimRef.current = null;
+            }
+        };
     }, [timeUnit]);
 
     // Confetti explosion on hr mode transitions
@@ -665,6 +703,17 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                 }
             } else if (document.visibilityState === 'visible') {
                 stopTimerForegroundService();
+                // If the timer expired while the app was hidden (background / screen locked),
+                // mark it so the countdown loop can start a silent celebration (animation
+                // without looping alarm) and cancel any pending notifications immediately.
+                const td = timeDataRef.current;
+                if (td && !silentCelebrationRef.current) {
+                    const remaining = td.duration - (Date.now() - td.startTime);
+                    if (remaining <= 0) {
+                        timerExpiredInBgRef.current = true;
+                        cancelAllNotifications();
+                    }
+                }
             }
         };
 
@@ -1106,7 +1155,16 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                 }
 
                 if (!interruptedRef.current) {
-                    playBang();
+                    // Check if the timer expired while the app was in the background.
+                    // In that case we show the animation but skip the looping alarm so
+                    // that unlocking / opening the app is enough to stop all audio.
+                    const expiredInBg = timerExpiredInBgRef.current;
+                    timerExpiredInBgRef.current = false;
+                    silentCelebrationRef.current = expiredInBg;
+
+                    if (!expiredInBg) {
+                        playBang();
+                    }
                     if (containerRef.current) {
                         const rect = containerRef.current.getBoundingClientRect();
                         setBurstOrigin({
@@ -1122,11 +1180,13 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                         setIsRaining(true);
                     }
 
-                    setTimeout(() => {
-                        if (isCelebratingRef.current && !interruptedRef.current) {
-                            setIsAlarmPlaying(true);
-                        }
-                    }, 200);
+                    if (!expiredInBg) {
+                        setTimeout(() => {
+                            if (isCelebratingRef.current && !interruptedRef.current) {
+                                setIsAlarmPlaying(true);
+                            }
+                        }, 200);
+                    }
                 }
             } else {
                 const currentMaxTime = getMaxTimeMs(timeUnitRef.current);
@@ -1301,13 +1361,14 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                 <circle cx={CENTER} cy={CENTER} r={DIAL_RADIUS} className="fill-[hsl(300,100%,97%)]" style={{ pointerEvents: 'none' }} />
             </g>
 
-            {/* 2. Ticks and Numbers Layer — min/sec mode (fades out in hr mode) */}
-            <g opacity={1 - hrModeProgress}>
-                {Array.from({ length: 60 }).map((_, i) => {
+            {/* 2. Ticks and Numbers Layer — small min/sec ticks (shrink toward outer edge in hr mode) */}
+            {hrModeProgress < 1 && Array.from({ length: 60 }).map((_, i) => {
                 if ((i + 1) % 5 === 0) return null;
                 const tickAngle = (i + 1) * 6;
-                const start = polarToCartesian(CENTER, CENTER, DIAL_RADIUS - 5 - 2.5 * secModeProgress, tickAngle);
-                const end = polarToCartesian(CENTER, CENTER, DIAL_RADIUS, tickAngle);
+                const baseInner = DIAL_RADIUS - 5 - 2.5 * secModeProgress;
+                const innerRadius = baseInner + (TICK_END_RADIUS - baseInner) * hrModeProgress;
+                const start = polarToCartesian(CENTER, CENTER, innerRadius, tickAngle);
+                const end = polarToCartesian(CENTER, CENTER, TICK_END_RADIUS, tickAngle);
                 return (
                     <line
                         key={`minute-tick-${i}`}
@@ -1317,167 +1378,122 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                         y2={end.y}
                         stroke={INDIGO}
                         strokeWidth="1"
+                        style={{ pointerEvents: 'none' }}
                     />
                 );
-                })}
-            </g>
+            })}
 
-            <g opacity={1 - hrModeProgress}>
-                {ticks.map((tick, i) => {
+            {/* 2b. Unified 12 major ticks — transform between min-mode and hr-mode */}
+            {Array.from({ length: 12 }).map((_, i) => {
                 const tickAngle = (i + 1) * 30;
-                const start = polarToCartesian(CENTER, CENTER, TICK_START_RADIUS - 4 * secModeProgress, tickAngle);
+                const minValue = (i + 1) * 5;
+                const hrValue = i + 1;
+                const innerRadius = TICK_START_RADIUS - 4 * secModeProgress * (1 - hrModeProgress);
+                const start = polarToCartesian(CENTER, CENTER, innerRadius, tickAngle);
                 const end = polarToCartesian(CENTER, CENTER, TICK_END_RADIUS, tickAngle);
                 const labelPos = polarToCartesian(CENTER, CENTER, LABEL_RADIUS, tickAngle);
-
-                if (tick === 60) {
-                    return (
-                    <g key={tick} onMouseDown={(e) => handleQuickSet(e, 60)} onTouchStart={(e) => handleQuickSet(e, 60)} style={{ cursor: 'pointer' }} className="group quick-set-button">
-                        <line
-                        x1={start.x}
-                        y1={start.y}
-                        x2={end.x}
-                        y2={end.y}
-                        stroke={INDIGO}
-                        strokeWidth="2"
-                        />
-                        <text
-                        x={labelPos.x}
-                        y={labelPos.y}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fontWeight="bold"
-                        fontSize="14"
-                        filter="url(#text-shadow)"
-                        className="transition-transform duration-150 ease-in-out group-hover:scale-125 group-active:scale-90"
-                        style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
-                        >
-                        <tspan fill={numberColors[12 % numberColors.length]}>6</tspan>
-                        <tspan fill={numberColors[0]}>0</tspan>
-                        </text>
-                    </g>
-                    );
-                }
-
-                const colorOrderIndex = (tick / 5);
-                const color = numberColors[colorOrderIndex % numberColors.length];
-
+                const strokeWidth = 2 + 1.5 * hrModeProgress;
+                const minColor = numberColors[(i + 1) % numberColors.length];
+                const hrColor = numberColors[i % numberColors.length];
                 return (
-                    <g key={tick} onMouseDown={(e) => handleQuickSet(e, tick)} onTouchStart={(e) => handleQuickSet(e, tick)} style={{ cursor: 'pointer' }} className="group quick-set-button">
-                    <line
-                        x1={start.x}
-                        y1={start.y}
-                        x2={end.x}
-                        y2={end.y}
-                        stroke={INDIGO}
-                        strokeWidth="2"
-                    />
-                    <text
-                        x={labelPos.x}
-                        y={labelPos.y}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fontWeight="bold"
-                        fontSize="14"
-                        fill={color}
-                        filter="url(#text-shadow)"
-                        className="transition-transform duration-150 ease-in-out group-hover:scale-125 group-active:scale-90"
-                        style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+                    <g key={`major-tick-${i}`}
+                        onMouseDown={(e) => handleQuickSet(e, minValue)}
+                        onTouchStart={(e) => handleQuickSet(e, minValue)}
+                        style={{ cursor: 'pointer' }}
+                        className="group quick-set-button"
                     >
-                        {tick}
-                    </text>
+                        <line
+                            x1={start.x} y1={start.y} x2={end.x} y2={end.y}
+                            stroke={INDIGO} strokeWidth={strokeWidth}
+                        />
+                        {/* Min-mode label (cross-fades out) */}
+                        <text
+                            x={labelPos.x} y={labelPos.y}
+                            textAnchor="middle" dominantBaseline="middle"
+                            fontWeight="bold" fontSize="14"
+                            filter="url(#text-shadow)"
+                            opacity={1 - hrModeProgress}
+                            className="transition-transform duration-150 ease-in-out group-hover:scale-125 group-active:scale-90"
+                            style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+                        >
+                            {minValue === 60 ? (
+                                <>
+                                    <tspan fill={numberColors[12 % numberColors.length]}>6</tspan>
+                                    <tspan fill={numberColors[0]}>0</tspan>
+                                </>
+                            ) : (
+                                <tspan fill={minColor}>{minValue}</tspan>
+                            )}
+                        </text>
+                        {/* Hr-mode label (cross-fades in) */}
+                        {hrModeProgress > 0 && (
+                            <text
+                                x={labelPos.x} y={labelPos.y}
+                                textAnchor="middle" dominantBaseline="middle"
+                                fontWeight="bold" fontSize="14"
+                                fill={hrColor}
+                                filter="url(#text-shadow)"
+                                opacity={hrModeProgress}
+                                className="transition-transform duration-150 ease-in-out group-hover:scale-125 group-active:scale-90"
+                                style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+                            >
+                                {hrValue}
+                            </text>
+                        )}
                     </g>
                 );
-                })}
-            </g>
+            })}
 
-            {/* 2b. Half-second dot markers (appear in sec mode, hidden in hr mode) */}
-            {secModeProgress > 0 && (
-                <g>
-                    {Array.from({ length: 60 }).map((_, i) => {
-                        const dotAngle = 3 + i * 6;
-                        const tickMidRadius = DIAL_RADIUS - (5 + 2.5 * secModeProgress) / 2;
-                        const dotPos = polarToCartesian(CENTER, CENTER, tickMidRadius, dotAngle);
-                        return (
-                            <circle
-                                key={`half-sec-dot-${i}`}
-                                cx={dotPos.x}
-                                cy={dotPos.y}
-                                r={1.125}
-                                fill={INDIGO}
-                                opacity={secModeProgress * (1 - hrModeProgress)}
-                                style={{ pointerEvents: 'none' }}
-                            />
-                        );
-                    })}
-                </g>
-            )}
+            {/* 2c. Half-second dot markers (shrink toward outer edge in hr mode) */}
+            {secModeProgress > 0 && hrModeProgress < 1 && Array.from({ length: 60 }).map((_, i) => {
+                const dotAngle = 3 + i * 6;
+                const baseRadius = DIAL_RADIUS - (5 + 2.5 * secModeProgress) / 2;
+                const dotRadius = baseRadius + (DIAL_RADIUS - baseRadius) * hrModeProgress;
+                const dotPos = polarToCartesian(CENTER, CENTER, dotRadius, dotAngle);
+                const dotSize = 1.125 * secModeProgress * (1 - hrModeProgress);
+                return (
+                    <circle
+                        key={`half-sec-dot-${i}`}
+                        cx={dotPos.x}
+                        cy={dotPos.y}
+                        r={dotSize}
+                        fill={INDIGO}
+                        style={{ pointerEvents: 'none' }}
+                    />
+                );
+            })}
 
-            {/* 2c. Hr mode ticks (144 micro + 48 quarter-hour + 12 hour), cross-fades in */}
-            {hrModeProgress > 0 && (
-                <g opacity={hrModeProgress}>
-                    {/* 144 micro-ticks at 2.5° intervals, skip positions that land on 7.5° marks */}
-                    {Array.from({ length: 144 }).map((_, i) => {
-                        if ((i + 1) % 3 === 0) return null; // skip 7.5° positions
-                        const tickAngle = (i + 1) * 2.5;
-                        const start = polarToCartesian(CENTER, CENTER, DIAL_RADIUS - 3, tickAngle);
-                        const end = polarToCartesian(CENTER, CENTER, DIAL_RADIUS, tickAngle);
-                        return (
-                            <line key={`hr-micro-${i}`}
-                                x1={start.x} y1={start.y} x2={end.x} y2={end.y}
-                                stroke={INDIGO} strokeWidth="0.75" opacity="0.35"
-                                style={{ pointerEvents: 'none' }}
-                            />
-                        );
-                    })}
-                    {/* 48 quarter-hour ticks at 7.5° intervals, skip positions that land on 30° marks */}
-                    {Array.from({ length: 48 }).map((_, j) => {
-                        if ((j + 1) % 4 === 0) return null; // skip 30° (hour) positions
-                        const tickAngle = (j + 1) * 7.5;
-                        const start = polarToCartesian(CENTER, CENTER, DIAL_RADIUS - 5, tickAngle);
-                        const end = polarToCartesian(CENTER, CENTER, DIAL_RADIUS, tickAngle);
-                        return (
-                            <line key={`hr-quarter-${j}`}
-                                x1={start.x} y1={start.y} x2={end.x} y2={end.y}
-                                stroke={INDIGO} strokeWidth="1"
-                                style={{ pointerEvents: 'none' }}
-                            />
-                        );
-                    })}
-                    {/* 12 hour labels with major ticks and quick-set interaction */}
-                    {Array.from({ length: 12 }).map((_, k) => {
-                        const hrValue = k + 1;
-                        const tickAngle = (hrValue / 12) * 360;
-                        const start = polarToCartesian(CENTER, CENTER, TICK_START_RADIUS, tickAngle);
-                        const end = polarToCartesian(CENTER, CENTER, TICK_END_RADIUS, tickAngle);
-                        const labelPos = polarToCartesian(CENTER, CENTER, LABEL_RADIUS, tickAngle);
-                        const color = numberColors[k % numberColors.length];
-                        return (
-                            <g key={`hr-label-${hrValue}`}
-                                onMouseDown={(e) => handleQuickSet(e, hrValue * 5)}
-                                onTouchStart={(e) => handleQuickSet(e, hrValue * 5)}
-                                style={{ cursor: 'pointer' }}
-                                className="group quick-set-button"
-                            >
-                                <line
-                                    x1={start.x} y1={start.y} x2={end.x} y2={end.y}
-                                    stroke={INDIGO} strokeWidth="3.5"
-                                />
-                                <text
-                                    x={labelPos.x} y={labelPos.y}
-                                    textAnchor="middle" dominantBaseline="middle"
-                                    fontWeight="bold" fontSize="14"
-                                    fill={color}
-                                    filter="url(#text-shadow)"
-                                    className="transition-transform duration-150 ease-in-out group-hover:scale-125 group-active:scale-90"
-                                    style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
-                                >
-                                    {hrValue}
-                                </text>
-                            </g>
-                        );
-                    })}
-                </g>
-            )}
+            {/* 2d. Hr mode micro-ticks (grow from outer edge inward) */}
+            {hrModeProgress > 0 && Array.from({ length: 144 }).map((_, i) => {
+                if ((i + 1) % 3 === 0) return null; // skip 7.5° positions
+                const tickAngle = (i + 1) * 2.5;
+                const innerRadius = DIAL_RADIUS - 3 * hrModeProgress;
+                const start = polarToCartesian(CENTER, CENTER, innerRadius, tickAngle);
+                const end = polarToCartesian(CENTER, CENTER, DIAL_RADIUS, tickAngle);
+                return (
+                    <line key={`hr-micro-${i}`}
+                        x1={start.x} y1={start.y} x2={end.x} y2={end.y}
+                        stroke={INDIGO} strokeWidth="0.75" opacity="0.35"
+                        style={{ pointerEvents: 'none' }}
+                    />
+                );
+            })}
+
+            {/* 2e. Hr mode quarter-hour ticks (grow from outer edge inward) */}
+            {hrModeProgress > 0 && Array.from({ length: 48 }).map((_, j) => {
+                if ((j + 1) % 4 === 0) return null; // skip 30° (hour) positions
+                const tickAngle = (j + 1) * 7.5;
+                const innerRadius = DIAL_RADIUS - 5 * hrModeProgress;
+                const start = polarToCartesian(CENTER, CENTER, innerRadius, tickAngle);
+                const end = polarToCartesian(CENTER, CENTER, DIAL_RADIUS, tickAngle);
+                return (
+                    <line key={`hr-quarter-${j}`}
+                        x1={start.x} y1={start.y} x2={end.x} y2={end.y}
+                        stroke={INDIGO} strokeWidth="1"
+                        style={{ pointerEvents: 'none' }}
+                    />
+                );
+            })}
 
             {/* Confetti explosion particles on hr mode transitions */}
             {explosionParticles.map((p) => (

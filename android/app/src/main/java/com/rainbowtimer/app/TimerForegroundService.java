@@ -140,7 +140,8 @@ public class TimerForegroundService extends Service {
 
     private Notification buildNotification(PendingIntent pendingIntent, int step60) {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Rainbow Timer")
+            // No setContentTitle — the app name already appears in the system notification header,
+            // setting it again would show "Rainbow Timer" twice (header + content area).
             // Dynamic icon: bitmap rendered to match the current step60 (see createProgressIcon).
             .setSmallIcon(IconCompat.createWithBitmap(createProgressIcon(step60)))
             .setContentIntent(pendingIntent)
@@ -157,8 +158,11 @@ public class TimerForegroundService extends Service {
             // Progress bar: max=60, value=(60 - step60) = elapsed fraction of the mode cycle.
             // Bar grows from left (empty at start) to right (full at expiry).
             // Remaining time is shown as the unfilled right portion.
-            // Future 12h mode: this line needs no change; only computeStep60() differs.
             .setProgress(60, 60 - step60, false)
+            // On Android 12+ (targetSdk >= 31), foreground service notifications are delayed
+            // up to 10 seconds by default. FOREGROUND_SERVICE_IMMEDIATE opts out of this delay
+            // so the notification appears instantly when the user leaves the app.
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build();
     }
 
