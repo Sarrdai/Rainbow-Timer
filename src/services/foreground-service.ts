@@ -4,7 +4,7 @@ export interface ForegroundServicePlugin {
   /**
    * Start the foreground service with timer information
    */
-  startForegroundService(options: { endTime: number }): Promise<void>;
+  startForegroundService(options: { endTime: number; totalDurationMs: number }): Promise<void>;
 
   /**
    * Update the foreground notification with remaining time
@@ -38,13 +38,13 @@ const ForegroundService = registerPlugin<ForegroundServicePlugin>('ForegroundSer
 /**
  * Start the foreground service for Android timer tracking
  */
-export async function startTimerForegroundService(endTime: number): Promise<void> {
+export async function startTimerForegroundService(endTime: number, totalDurationMs: number): Promise<void> {
   if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') {
     return;
   }
 
   try {
-    await ForegroundService.startForegroundService({ endTime });
+    await ForegroundService.startForegroundService({ endTime, totalDurationMs });
     console.log('Foreground service started');
   } catch (error) {
     console.error('Error starting foreground service:', error);

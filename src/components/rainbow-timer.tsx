@@ -300,13 +300,10 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
           } catch (error) {
           }
 
-          // Schedule notification and start foreground service
-          if (!isMutedRef.current && isNativePlatform()) {
-            await scheduleTimerNotification(new Date(newEndTime), 'party_horn.mp3');
-
-            // Start Android foreground service
-            if (isAndroid()) {
-                startTimerForegroundService(newEndTime);
+          if (isNativePlatform()) {
+            // Schedule end-of-timer alarm notification (only when not muted)
+            if (!isMutedRef.current) {
+                await scheduleTimerNotification(new Date(newEndTime), 'party_horn.mp3');
             }
           }
     
@@ -487,8 +484,13 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     }, [initializeAudio]);
 
     useEffect(() => {
-        // Setup notification channels for Android
-        setupNotificationChannels();
+        if (!isNativePlatform()) return;
+        // Setup channels first, then request POST_NOTIFICATIONS permission.
+        // On Android 13+ this is a runtime permission — without it the foreground
+        // service notification is silently suppressed.
+        setupNotificationChannels().then(() => {
+            requestNotificationPermissions();
+        });
     }, []);
 
     useEffect(() => {
@@ -522,7 +524,29 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
           }
       };
     }, [timeData]);
-    
+
+    // Start/stop foreground service based on app visibility (Android only)
+    // Notification only shows when user leaves the app
+    useEffect(() => {
+        if (!isAndroid()) return;
+
+        const handleForegroundVisibility = () => {
+            if (document.visibilityState === 'hidden') {
+                const td = timeDataRef.current;
+                if (!td) return;
+                const remaining = td.duration - (Date.now() - td.startTime);
+                if (remaining > 0) {
+                    startTimerForegroundService(Date.now() + remaining, td.duration);
+                }
+            } else if (document.visibilityState === 'visible') {
+                stopTimerForegroundService();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleForegroundVisibility);
+        return () => document.removeEventListener('visibilitychange', handleForegroundVisibility);
+    }, []);
+
     const handleQuickSet = useCallback((e: React.MouseEvent | React.TouchEvent, value: number) => {
       e.preventDefault();
       e.stopPropagation();
@@ -763,24 +787,15 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                 const remaining = timeData.duration - (Date.now() - timeData.startTime);
                 const endTime = Date.now() + remaining;
                 await scheduleTimerNotification(new Date(endTime), 'party_horn.mp3');
-
-                // Restart Android foreground service
-                if (isAndroid()) {
-                    startTimerForegroundService(endTime);
-                }
             }
         }
       } else {
         if (isAlarmPlaying) {
             setIsAlarmPlaying(false);
         }
-        // Cancel notifications and foreground service when muting
+        // Cancel notifications when muting
         if (isNativePlatform()) {
             await cancelAllNotifications();
-
-            if (isAndroid()) {
-                stopTimerForegroundService();
-            }
         }
       }
     };
@@ -886,6 +901,15 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                 try {
                     localStorage.removeItem(TIMER_STORAGE_KEY);
                 } catch(e) {}
+
+                // App is in foreground (JS is running) — cancel the scheduled
+                // notification so it doesn't fire on top of the in-app celebration.
+                if (isNativePlatform()) {
+                    cancelAllNotifications();
+                    if (isAndroid()) {
+                        stopTimerForegroundService();
+                    }
+                }
 
                 if (!interruptedRef.current) {
                     playBang();
