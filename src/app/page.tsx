@@ -6,7 +6,7 @@ import { Footer } from '@/components/footer';
 import { RainbowTimer } from '@/components/rainbow-timer';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { TitleConfetti } from '@/components/title-confetti';
+import { ConfettiLayer, confetti } from '@/components/confetti';
 
 export default function Home() {
   const [manualFullscreen, setManualFullscreen] = useState(false);
@@ -14,7 +14,6 @@ export default function Home() {
   const [isPartyMode, setIsPartyMode] = useState(false);
   
   const titleRef = useRef<HTMLDivElement>(null);
-  const [confettiBursts, setConfettiBursts] = useState<{ id: number; x: number; y: number }[]>([]);
   const [rainbowKey, setRainbowKey] = useState(0);
   const [titleBangTrigger, setTitleBangTrigger] = useState(0);
 
@@ -68,31 +67,24 @@ export default function Home() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const handleTitleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleTitleBurst = (x: number, y: number) => {
     setTitleBangTrigger(Date.now());
-    setConfettiBursts(bursts => [...bursts, { id: Date.now(), x: e.clientX, y: e.clientY }]);
+    confetti.pointBurst({ x, y });
     setIsPartyMode(p => !p);
     setRainbowKey(k => k + 1);
   };
+
+  const handleTitleClick = (e: React.MouseEvent<HTMLDivElement>) => handleTitleBurst(e.clientX, e.clientY);
   
   const handleInterruptCelebration = useCallback((e: MouseEvent | TouchEvent) => {
-    const clientX = e instanceof MouseEvent ? e.clientX : e.touches[0].clientX;
-    const clientY = e instanceof MouseEvent ? e.clientY : e.touches[0].clientY;
-    setConfettiBursts(bursts => [...bursts, { id: Date.now(), x: clientX, y: clientY }]);
+    const point = 'touches' in e ? (e.touches[0] ?? e.changedTouches[0]) : e;
+    if (point) confetti.pointBurst({ x: point.clientX, y: point.clientY });
     setTitleBangTrigger(Date.now());
   }, []);
 
   return (
-    <main className="relative h-screen w-full overflow-hidden">
-      {confettiBursts.map(burst => (
-          <TitleConfetti
-              key={burst.id}
-              origin={{ x: burst.x, y: burst.y }}
-              onComplete={() => {
-                  setConfettiBursts(currentBursts => currentBursts.filter(b => b.id !== burst.id));
-              }}
-          />
-      ))}
+    <main className="relative h-dvh w-full overflow-hidden">
+      <ConfettiLayer />
 
       {/* Title: fixed above the viewport-centered dial.
           Dial half-sizes per breakpoint: 160 / 175 / 195 / 215 / 230 px
@@ -105,8 +97,19 @@ export default function Home() {
       )}>
         <div
           ref={titleRef}
-          className="relative flex cursor-pointer items-center justify-center"
+          role="button"
+          tabIndex={0}
+          aria-label={isPartyMode ? 'Rainbow Party – switch to timer mode' : 'Rainbow Timer – switch to party mode'}
+          aria-pressed={isPartyMode}
+          className="relative flex cursor-pointer select-none items-center justify-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={handleTitleClick}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              const rect = e.currentTarget.getBoundingClientRect();
+              handleTitleBurst(rect.left + rect.width / 2, rect.top + rect.height / 2);
+            }
+          }}
         >
           <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl font-headline flex flex-col items-center justify-center">
             <RainbowWord key={rainbowKey} />
@@ -122,7 +125,6 @@ export default function Home() {
         isForcedFullscreen={isForcedFullscreen}
         titleBangTrigger={titleBangTrigger}
         onInterruptCelebration={handleInterruptCelebration}
-        isUIVisible={isTitleAndFooterVisible}
         titleRef={titleRef}
       />
 

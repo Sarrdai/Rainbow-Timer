@@ -1,11 +1,15 @@
 import type {Metadata, Viewport} from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
-import { Toaster } from '@/components/ui/toaster';
+
+// Self-hosted at build time: no runtime request to Google, works offline in the native app
+const inter = Inter({ subsets: ['latin'], weight: ['400', '700'], variable: '--font-inter', display: 'swap' });
 
 export const metadata: Metadata = {
   title: 'Rainbow Timer',
   description: 'A visual timer app with a rainbow dial.',
   manifest: '/manifest.json',
+  robots: { index: false, follow: false },
   icons: {
     icon: [
         { url: '/favicon.ico', sizes: 'any' },
@@ -17,7 +21,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#46378a',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f8def8' },
+    { media: '(prefers-color-scheme: dark)', color: '#15122a' },
+  ],
 };
 
 export default function RootLayout({
@@ -26,16 +33,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <head>
-        <meta name="robots" content="noindex, nofollow" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet" />
-      </head>
+    <html lang="en" className={inter.variable}>
       <body className="font-body antialiased">
         {children}
-        <Toaster />
       </body>
     </html>
   );

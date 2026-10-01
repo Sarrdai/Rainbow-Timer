@@ -1,9 +1,10 @@
 "use client";
 
 import React from 'react';
+import { RAINBOW_COLORS } from './confetti';
 
 export const RainbowWord = () => {
-    const colors = ['#e81416', '#ffa500', '#faeb36', '#79c314', '#487de7', '#4b369d', '#70369d'];
+    const colors = RAINBOW_COLORS;
     const text = "Rainbow";
     
     const SVG_WIDTH = 200;
@@ -12,8 +13,9 @@ export const RainbowWord = () => {
     const TOTAL_STRIPES_WIDTH = colors.length * STRIPE_WIDTH;
 
     return (
-        <div className="relative" style={{ width: SVG_WIDTH, height: SVG_HEIGHT }}>
-            <svg width={SVG_WIDTH} height={SVG_HEIGHT} viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`} className="rainbow-word-svg">
+        <span className="relative block" style={{ width: SVG_WIDTH, height: SVG_HEIGHT }}>
+            <span className="sr-only">{text}</span>
+            <svg aria-hidden="true" width={SVG_WIDTH} height={SVG_HEIGHT} viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`} className="rainbow-word-svg">
                 <defs>
                     <clipPath id="rainbow-text-clip-path">
                         <text
@@ -47,7 +49,7 @@ export const RainbowWord = () => {
                     </g>
                 </g>
             </svg>
-        </div>
+        </span>
     );
 };
 
