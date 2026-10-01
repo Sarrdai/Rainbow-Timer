@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Maximize, Minimize, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -97,7 +97,7 @@ const interpolateAngleForSet = (start: number, end: number, progress: number) =>
 };
 
 
-export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, isForcedFullscreen, titleBangTrigger, onInterruptCelebration, isUIVisible, titleRef }: { isFullscreen: boolean; onFullscreenChange: (isFs: boolean) => void; isPartyMode: boolean; isForcedFullscreen: boolean; titleBangTrigger: number; onInterruptCelebration: (e: MouseEvent | TouchEvent) => void; isUIVisible: boolean; titleRef: React.RefObject<HTMLDivElement>; }) {
+export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, isForcedFullscreen, titleBangTrigger, onInterruptCelebration, isUIVisible, titleRef }: { isFullscreen: boolean; onFullscreenChange: (isFs: boolean) => void; isPartyMode: boolean; isForcedFullscreen: boolean; titleBangTrigger: number; onInterruptCelebration: (e: MouseEvent | TouchEvent) => void; isUIVisible: boolean; titleRef: React.RefObject<HTMLDivElement | null>; }) {
     const [hasMounted, setHasMounted] = useState(false);
     const [angle, setAngle] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
@@ -1047,13 +1047,15 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
           window.addEventListener('touchmove', moveHandler, { passive: false });
           window.addEventListener('mouseup', endHandler);
           window.addEventListener('touchend', endHandler);
+          window.addEventListener('touchcancel', endHandler);
         }
     
         return () => {
           window.removeEventListener('mousemove', moveHandler);
           window.removeEventListener('touchmove', moveHandler);
-          window.addEventListener('mouseup', endHandler);
-          window.addEventListener('touchend', endHandler);
+          window.removeEventListener('mouseup', endHandler);
+          window.removeEventListener('touchend', endHandler);
+          window.removeEventListener('touchcancel', endHandler);
         };
       }, [isDragging, handleInteractionMove, handleInteractionEnd]);
     
@@ -1350,12 +1352,10 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     }
   }, []);
 
-  const RenderDial = () => {
-    // auto-sec uses rainbow background + white arc; sec mode uses white background + rainbow (like min mode)
-    const shouldShowDetailView = isDetailView && wasAutoSwitchedRef.current;
-
-    return (
-        <g>
+  // Static dial face (background, ticks, labels). Memoized so the per-frame
+  // countdown re-render only touches the rainbow arcs and the indicator.
+  const dialMarkings = useMemo(() => (
+        <>
             {/* 1. Background Layer */}
             <g>
                 <circle cx={CENTER} cy={CENTER} r={DIAL_RADIUS} className="fill-[hsl(300,100%,97%)]" style={{ pointerEvents: 'none' }} />
@@ -1494,6 +1494,16 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                     />
                 );
             })}
+        </>
+  ), [secModeProgress, hrModeProgress, handleQuickSet]);
+
+  const renderDial = () => {
+    // auto-sec uses rainbow background + white arc; sec mode uses white background + rainbow (like min mode)
+    const shouldShowDetailView = isDetailView && wasAutoSwitchedRef.current;
+
+    return (
+        <g>
+            {dialMarkings}
 
             {/* Confetti explosion particles on hr mode transitions */}
             {explosionParticles.map((p) => (
@@ -1609,7 +1619,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                         </defs>
                         {hasMounted && (
                             <>
-                                <RenderDial />
+                                {renderDial()}
 
                                 <g filter="url(#shadow)">
                                     <circle cx={CENTER} cy={CENTER} r={CENTER_CIRCLE_RADIUS} className="fill-[hsl(var(--background))]" style={{ pointerEvents: 'none' }} />

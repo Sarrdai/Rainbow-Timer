@@ -7,8 +7,8 @@ self.addEventListener('message', (event) => {
       setTimeout(() => {
         self.registration.showNotification('Rainbow Timer', {
           body: 'Your timer is up!',
-          icon: '/icon-192x192.png',
-          badge: '/icon-192x192.png',
+          icon: '/icon-192.png',
+          badge: '/icon-192.png',
         });
       }, remainingTime);
     }

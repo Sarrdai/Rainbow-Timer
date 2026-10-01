@@ -1,6 +1,9 @@
 import { KeepAwake } from '@capacitor-community/keep-awake';
 import { Capacitor } from '@capacitor/core';
 
+// Web wake lock sentinel, kept so it can be released when the timer stops
+let webWakeLock: WakeLockSentinel | null = null;
+
 /**
  * Keep the device awake while timer is running
  */
@@ -9,9 +12,8 @@ export async function keepAwake(): Promise<void> {
     // Fallback to Web Wake Lock API
     if ('wakeLock' in navigator) {
       try {
-        // @ts-ignore - wakeLock is not in TypeScript types yet
-        await navigator.wakeLock.request('screen');
-        console.log('Web wake lock activated');
+        if (webWakeLock && !webWakeLock.released) return;
+        webWakeLock = await navigator.wakeLock.request('screen');
       } catch (error) {
         console.error('Error activating web wake lock:', error);
       }
@@ -32,8 +34,12 @@ export async function keepAwake(): Promise<void> {
  */
 export async function allowSleep(): Promise<void> {
   if (!Capacitor.isNativePlatform()) {
-    // Web wake lock is automatically released when page is hidden
-    console.log('Web wake lock will be released automatically');
+    try {
+      await webWakeLock?.release();
+    } catch (error) {
+      console.error('Error releasing web wake lock:', error);
+    }
+    webWakeLock = null;
     return;
   }
 
