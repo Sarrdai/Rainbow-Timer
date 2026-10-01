@@ -3,6 +3,7 @@
 import { RainbowWord } from '@/components/rainbow-word';
 import { TogglingWord } from '@/components/toggling-word';
 import { Footer } from '@/components/footer';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { RainbowTimer } from '@/components/rainbow-timer';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
@@ -126,6 +127,13 @@ export default function Home() {
         titleBangTrigger={titleBangTrigger}
         onInterruptCelebration={handleInterruptCelebration}
         titleRef={titleRef}
+      />
+
+      <ThemeToggle
+        className={cn(
+          "fixed right-4 top-4 z-[55] transition-opacity duration-200",
+          !isTitleAndFooterVisible && !isForcedFullscreen && "pointer-events-none opacity-0"
+        )}
       />
 
       <div className={cn("fixed bottom-4 left-1/2 -translate-x-1/2 w-full transition-opacity duration-200", !isTitleAndFooterVisible && "pointer-events-none opacity-0")}>

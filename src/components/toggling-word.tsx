@@ -1,28 +1,58 @@
 "use client";
 
-import React from 'react';
+import React, { useId } from 'react';
 import { cn } from '@/lib/utils';
 import { RAINBOW_COLORS } from './confetti';
 
-const HAT_HEIGHT = 75;
-const HAT_GAP = 2;
-const HAT_STRIPE_HEIGHT = (HAT_HEIGHT - (RAINBOW_COLORS.length - 1) * HAT_GAP) / RAINBOW_COLORS.length;
+const HAT_STRIPE = 11;
 
-const PartyHat = () => (
-    <svg width="28" height="32" viewBox="0 0 75 85" fill="none" aria-hidden="true" className="absolute -top-4 -left-2 -rotate-[15deg]">
-        <defs>
-            <clipPath id="hat-clip-path">
-                <path d="M37.5 5L70 80H5L37.5 5Z" />
-            </clipPath>
-        </defs>
-        <g clipPath="url(#hat-clip-path)">
-            {RAINBOW_COLORS.map((color, i) => (
-                <rect key={color} x="0" y={5 + i * (HAT_STRIPE_HEIGHT + HAT_GAP)} width="75" height={HAT_STRIPE_HEIGHT} fill={color} />
-            ))}
-        </g>
-        <circle cx="37.5" cy="5" r="5" fill="#faeb36" />
-    </svg>
-);
+/** Rainbow party hat, tilted onto the "P". Sized in em so it scales with the title. */
+const PartyHat = () => {
+    const id = useId();
+    const cone = `${id}-cone`;
+    const shade = `${id}-shade`;
+    return (
+        <svg
+            viewBox="-16 -4 80 84"
+            aria-hidden="true"
+            className="pointer-events-none absolute -left-[0.27em] -top-[0.34em] h-[1.05em] w-[1em] -rotate-[20deg]"
+        >
+            <defs>
+                <clipPath id={cone}><path d="M32 8 L55 68 Q32 76 9 68 Z" /></clipPath>
+                <linearGradient id={shade} x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0" stopColor="#ffffff" stopOpacity="0.35" />
+                    <stop offset="0.45" stopColor="#ffffff" stopOpacity="0" />
+                    <stop offset="1" stopColor="#2b1f4a" stopOpacity="0.22" />
+                </linearGradient>
+            </defs>
+            {/* Diagonal rainbow stripes, clipped to the cone, with soft side shading */}
+            <g clipPath={`url(#${cone})`}>
+                <g transform="rotate(-28 32 40)">
+                    {Array.from({ length: 10 }, (_, i) => (
+                        <rect key={i} x="-30" y={-12 + i * HAT_STRIPE} width="124" height={HAT_STRIPE} fill={RAINBOW_COLORS[i % RAINBOW_COLORS.length]} />
+                    ))}
+                </g>
+                <rect x="0" y="0" width="64" height="80" fill={`url(#${shade})`} />
+            </g>
+            {/* Trim with dots */}
+            <path d="M9 68 Q32 76 55 68" fill="none" stroke="#ffffff" strokeWidth="6" strokeLinecap="round" />
+            <circle cx="17" cy="70.5" r="1.6" fill="#e81416" />
+            <circle cx="27" cy="72.6" r="1.6" fill="#487de7" />
+            <circle cx="37" cy="72.6" r="1.6" fill="#79c314" />
+            <circle cx="47" cy="70.5" r="1.6" fill="#ffa500" />
+            {/* Fluffy pom-pom */}
+            <circle cx="32" cy="7" r="7" fill="#ffd23f" />
+            <circle cx="26.5" cy="9" r="4" fill="#ffd23f" />
+            <circle cx="37.5" cy="9" r="4" fill="#ffd23f" />
+            <circle cx="32" cy="2.5" r="4" fill="#ffe27a" />
+            <circle cx="29.5" cy="4.5" r="2" fill="#ffffff" opacity="0.7" />
+            {/* Confetti specks */}
+            <rect x="-12" y="14" width="5" height="2.5" rx="1" fill="#487de7" transform="rotate(30 -10 15)" />
+            <rect x="0" y="0" width="5" height="2.5" rx="1" fill="#e81416" transform="rotate(-25 2 1)" />
+            <circle cx="-6" cy="30" r="1.8" fill="#79c314" />
+        </svg>
+    );
+};
 
 // Both words stay mounted and swap with a flip-up transition on opacity/transform only,
 // so the change is compositor-driven and never causes layout or repaint of the title.

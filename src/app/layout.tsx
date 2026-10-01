@@ -1,6 +1,7 @@
 import type {Metadata, Viewport} from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import { themeInitScript } from '@/lib/theme';
 
 // Self-hosted at build time: no runtime request to Google, works offline in the native app
 const inter = Inter({ subsets: ['latin'], weight: ['400', '700'], variable: '--font-inter', display: 'swap' });
@@ -33,7 +34,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className="font-body antialiased">
         {children}
       </body>
