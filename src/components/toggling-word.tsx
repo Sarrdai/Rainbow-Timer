@@ -6,7 +6,7 @@ import { RAINBOW_COLORS } from './confetti';
 
 const HAT_STRIPE = 11;
 
-/** Rainbow party hat, tilted onto the "P". Sized in em so it scales with the title. */
+/** Rainbow party hat worn on the top-left corner of the "P". Sized in em so it scales with the title. */
 const PartyHat = () => {
     const id = useId();
     const cone = `${id}-cone`;
@@ -15,10 +15,10 @@ const PartyHat = () => {
         <svg
             viewBox="-16 -4 80 84"
             aria-hidden="true"
-            className="pointer-events-none absolute -left-[0.34em] -top-[0.2em] h-[0.74em] w-[0.7em] -rotate-[33deg]"
+            className="pointer-events-none absolute -left-[0.34em] -top-[0.2em] h-[0.74em] w-[0.7em] -rotate-[33deg] drop-shadow-[0_0.04em_0.03em_rgba(20,10,40,0.45)]"
         >
             <defs>
-                <clipPath id={cone}><path d="M32 8 L55 68 Q32 76 9 68 Z" /></clipPath>
+                <clipPath id={cone}><path d="M32 8 L55 68 Q32 81 9 68 Z" /></clipPath>
                 <linearGradient id={shade} x1="0" y1="0" x2="1" y2="0">
                     <stop offset="0" stopColor="#ffffff" stopOpacity="0.35" />
                     <stop offset="0.45" stopColor="#ffffff" stopOpacity="0" />
@@ -35,11 +35,11 @@ const PartyHat = () => {
                 <rect x="0" y="0" width="64" height="80" fill={`url(#${shade})`} />
             </g>
             {/* Trim with dots */}
-            <path d="M9 68 Q32 76 55 68" fill="none" stroke="#ffffff" strokeWidth="6" strokeLinecap="round" />
-            <circle cx="17" cy="70.5" r="1.6" fill="#e81416" />
-            <circle cx="27" cy="72.6" r="1.6" fill="#487de7" />
-            <circle cx="37" cy="72.6" r="1.6" fill="#79c314" />
-            <circle cx="47" cy="70.5" r="1.6" fill="#ffa500" />
+            <path d="M9 68 Q32 81 55 68" fill="none" stroke="#ffffff" strokeWidth="6" strokeLinecap="round" />
+            <circle cx="17" cy="71.6" r="1.6" fill="#e81416" />
+            <circle cx="27" cy="74.1" r="1.6" fill="#487de7" />
+            <circle cx="37" cy="74.1" r="1.6" fill="#79c314" />
+            <circle cx="47" cy="71.6" r="1.6" fill="#ffa500" />
             {/* Fluffy pom-pom */}
             <circle cx="32" cy="7" r="7" fill="#ffd23f" />
             <circle cx="26.5" cy="9" r="4" fill="#ffd23f" />
