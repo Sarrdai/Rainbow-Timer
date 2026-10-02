@@ -15,7 +15,7 @@ const PartyHat = () => {
         <svg
             viewBox="-16 -4 80 84"
             aria-hidden="true"
-            className="pointer-events-none absolute -left-[0.27em] -top-[0.34em] h-[1.05em] w-[1em] -rotate-[20deg]"
+            className="pointer-events-none absolute -left-[0.17em] -top-[0.36em] h-[0.92em] w-[0.88em] -rotate-[16deg]"
         >
             <defs>
                 <clipPath id={cone}><path d="M32 8 L55 68 Q32 76 9 68 Z" /></clipPath>
