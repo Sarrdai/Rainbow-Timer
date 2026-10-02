@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from 'react';
+import { assetPath } from '@/lib/utils';
 
-const ALARM_SRC = '/party-horn.mp3';
+const ALARM_SRC = assetPath('/party-horn.mp3');
 const BANG_DURATION_S = 0.3;
 
 /**

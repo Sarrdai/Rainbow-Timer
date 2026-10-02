@@ -1,5 +1,5 @@
 {
-  "name": "nextn",
+  "name": "rainbow-timer",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -10,7 +10,6 @@
     "ios:dev": "npm run build:native && npx cap open ios",
     "android:dev": "npm run build:native && npx cap open android",
     "start": "next start",
-    "lint": "next lint",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

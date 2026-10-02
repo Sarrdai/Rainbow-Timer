@@ -24,7 +24,6 @@
       "Bash(npm outdated:*)",
       "Bash(npm update:*)",
       "Bash(npm audit:*)",
-      "Bash(firebase deploy:*)",
       "Bash(xargs grep:*)",
       "Bash(python3:*)",
       "Bash(node:*)",

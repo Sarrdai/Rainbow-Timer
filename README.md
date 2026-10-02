@@ -45,7 +45,7 @@ npm run android:dev
 
 ## 📱 Platform Support
 
-- **Web**: Works in all modern browsers as a PWA
+- **Web**: Works in all modern browsers as a PWA, deployed to GitHub Pages
 - **iOS**: Native app with time-sensitive notifications
 - **Android**: Native app with foreground service for reliable background timers
 
@@ -65,7 +65,7 @@ npm run android:dev
 
 ## 🛠️ Technology Stack
 
-- **Framework**: Next.js 15 with React 19
+- **Framework**: Next.js 16 with React 19
 - **Native**: Capacitor 8
 - **UI**: Tailwind CSS with custom components
 - **Notifications**: Capacitor Local Notifications
@@ -74,6 +74,8 @@ npm run android:dev
 ## 📖 Documentation
 
 - [INSTALL.md](./INSTALL.md) - Comprehensive installation guide for iOS and Android
+- [DEVELOPMENT.md](./DEVELOPMENT.md) - Architecture and development guide
+- [DEV_WORKFLOW.md](./DEV_WORKFLOW.md) - Day-to-day workflow and deployment (German)
 - [src/components/rainbow-timer.tsx](./src/components/rainbow-timer.tsx) - Main timer component
 - [src/services/](./src/services/) - Native platform services
 
@@ -92,7 +94,6 @@ npm run ios:dev          # Open iOS project in Xcode
 npm run android:dev      # Open Android project in Android Studio
 
 # Utilities
-npm run lint             # Run ESLint
 npm run typecheck        # Run TypeScript type checking
 ```
 

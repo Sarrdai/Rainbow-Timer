@@ -29,8 +29,7 @@ Rainbow-Timer/
 │       │   └── sounds/   # Custom notification sounds
 │       └── App.xcworkspace
 ├── public/               # Static assets
-│   ├── party-horn.mp3    # Alarm sound
-│   └── sw.js             # Service worker (PWA fallback)
+│   └── party-horn.mp3    # Alarm sound
 └── out/                  # Static build output
 ```
 
@@ -49,8 +48,8 @@ if (isNativePlatform()) {
   // Capacitor native APIs
   await scheduleTimerNotification(endTime, 'party_horn.mp3');
 } else {
-  // Web APIs (Service Worker)
-  navigator.serviceWorker.controller.postMessage(...);
+  // Web Notification API
+  new Notification('Rainbow Timer', { body: 'Your timer is up!' });
 }
 ```
 
@@ -63,8 +62,7 @@ if (isNativePlatform()) {
 - Survives app closure
 
 **Web (PWA):**
-- Uses Service Worker with `setTimeout`
-- Browser notification API
+- Browser Notification API
 - Limited when tab is closed
 
 ### Android Foreground Service
@@ -164,7 +162,7 @@ npm run dev
 
 - Fast hot-reload
 - Test in browser
-- Service Worker notifications (limited)
+- Browser notifications (limited)
 
 ### 2. Native Testing
 

@@ -77,22 +77,17 @@ git push
   - `fix: Timer notification sound not playing`
   - `style: Update rainbow colors for better visibility`
 
-### 5. Auf Firebase deployen
+### 5. Auf GitHub Pages deployen
 
-```bash
-# Build erstellen
-npm run build
+Das Deployment läuft automatisch über GitHub Actions (`.github/workflows/deploy-pages.yml`):
 
-# Auf Firebase Hosting deployen
-firebase deploy
-```
+- **Pull Request auf `main`:** Typecheck + Build werden geprüft (kein Deploy)
+- **Push/Merge auf `main`:** Build wird auf GitHub Pages veröffentlicht
+- Manuell auslösbar über *Actions → Deploy to GitHub Pages → Run workflow*
 
-**Deployment dauert ca. 30-60 Sekunden.**
+Voraussetzung: In den Repo-Einstellungen unter *Settings → Pages* ist als Source **GitHub Actions** gewählt.
 
-Nach erfolgreichem Deploy:
-- ✅ Neue Version ist live
-- ✅ URL: https://studio-4946943459-ee9a8.web.app
-- ✅ Custom Domain (falls eingerichtet)
+Der Base-Path (z. B. `/Rainbow-Timer` bei `<user>.github.io/Rainbow-Timer/`) wird vom Workflow automatisch gesetzt; bei einer Custom Domain bleibt er leer.
 
 ---
 
@@ -114,14 +109,10 @@ npm run build
 git add .
 git commit -m "Beschreibung der Änderungen"
 
-# 6. Auf Firebase deployen
-firebase deploy
-
-# 7. Live-App testen
-# Öffnen: https://studio-4946943459-ee9a8.web.app
-
-# 8. Optional: Pushen zu GitHub
+# 6. Pushen und PR auf main erstellen
 git push
+
+# 7. Nach dem Merge deployt GitHub Actions automatisch auf GitHub Pages
 ```
 
 ---
@@ -165,9 +156,6 @@ npm run build:native
 
 # TypeScript-Checks
 npm run typecheck
-
-# Linting
-npm run lint
 ```
 
 ---
@@ -193,15 +181,10 @@ npm run build
 npm run dev -- -p 3000
 ```
 
-### Firebase Deploy schlägt fehl
+### GitHub Pages Deploy schlägt fehl
 
-```bash
-# Neu anmelden
-firebase login --reauth
-
-# Projekt-Status prüfen
-firebase projects:list
-```
+- Workflow-Log unter *Actions → Deploy to GitHub Pages* prüfen
+- *Settings → Pages → Source* muss auf **GitHub Actions** stehen
 
 ---
 
@@ -213,7 +196,7 @@ firebase projects:list
 2. [ ] Production-Build testen (`npm run build`)
 3. [ ] TypeScript-Checks laufen durch (`npm run typecheck`)
 4. [ ] Committen mit aussagekräftiger Message
-5. [ ] Firebase deployen
+5. [ ] PR mergen (Deploy läuft automatisch)
 6. [ ] Live-App testen
 
 ### ✅ Regelmäßig:
@@ -226,7 +209,7 @@ firebase projects:list
 
 - Bilder optimieren (WebP nutzen)
 - Icons sind bereits optimiert
-- Firebase Hosting hat Caching aktiviert
+- GitHub Pages liefert statische Dateien mit Caching aus
 
 ---
 
@@ -248,8 +231,7 @@ npm run dev       # Dev-Server starten
 npm run build     # Finalen Build testen
 git add .
 git commit -m "Feature XYZ fertig"
-firebase deploy   # Live deployen
-git push          # Auf GitHub sichern
+git push          # Auf GitHub sichern, Deploy nach Merge auf main
 ```
 
 ---
@@ -257,16 +239,15 @@ git push          # Auf GitHub sichern
 ## 🔗 Wichtige URLs
 
 - **Dev-Server:** http://localhost:9002
-- **Live-App:** https://studio-4946943459-ee9a8.web.app
-- **Firebase Console:** https://console.firebase.google.com/project/studio-4946943459-ee9a8
-- **GitHub:** (Ihr Repository)
+- **GitHub:** https://github.com/Sarrdai/Rainbow-Timer
+- **Live-App:** siehe *Settings → Pages* bzw. Deployment-Umgebung `github-pages`
 
 ---
 
 ## 📚 Weitere Ressourcen
 
 - **Next.js Docs:** https://nextjs.org/docs
-- **Firebase Hosting Docs:** https://firebase.google.com/docs/hosting
+- **GitHub Pages Docs:** https://docs.github.com/pages
 - **Capacitor Docs:** https://capacitorjs.com/docs
 
 ---
