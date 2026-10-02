@@ -1,0 +1,28 @@
+{
+  "name": "rainbow-timer",
+  "author": "Sarrdai",
+  "version": "1.0.0",
+  "keywords": [
+    "pebble-app",
+    "timer"
+  ],
+  "private": true,
+  "dependencies": {},
+  "pebble": {
+    "displayName": "Rainbow Timer",
+    "uuid": "16794bbf-5e2e-4d0a-9df4-f7bb9d979909",
+    "sdkVersion": "3",
+    "enableMultiJS": false,
+    "targetPlatforms": [
+      "gabbro"
+    ],
+    "watchapp": {
+      "watchface": false
+    },
+    "messageKeys": [],
+    "resources": {
+      "media": []
+    },
+    "capabilities": []
+  }
+}
