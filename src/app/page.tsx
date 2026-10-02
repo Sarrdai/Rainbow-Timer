@@ -1,7 +1,7 @@
 "use client";
 
-import { RainbowWord } from '@/components/rainbow-word';
-import { TogglingWord } from '@/components/toggling-word';
+import { RainbowTitle } from '@/components/rainbow-title';
+import { PartyDecoration } from '@/components/party-decoration';
 import { Footer } from '@/components/footer';
 import { RainbowTimer } from '@/components/rainbow-timer';
 import { useEffect, useState, useRef, useCallback } from 'react';
@@ -14,7 +14,6 @@ export default function Home() {
   const [isPartyMode, setIsPartyMode] = useState(false);
   
   const titleRef = useRef<HTMLDivElement>(null);
-  const [rainbowKey, setRainbowKey] = useState(0);
   const [titleBangTrigger, setTitleBangTrigger] = useState(0);
 
   const [isTitleAndFooterVisible, setIsTitleAndFooterVisible] = useState(true);
@@ -68,10 +67,23 @@ export default function Home() {
   }, []);
 
   const handleTitleBurst = (x: number, y: number) => {
+    const enteringParty = !isPartyMode;
     setTitleBangTrigger(Date.now());
-    confetti.pointBurst({ x, y });
-    setIsPartyMode(p => !p);
-    setRainbowKey(k => k + 1);
+    if (enteringParty) {
+      // A short, light sprinkle: a small burst at the tap plus a few pieces falling from the top
+      confetti.pointBurst({ x, y }, 18);
+      confetti.shower(55);
+    } else {
+      confetti.dissolve();
+    }
+    setIsPartyMode(enteringParty);
+    // Squash-and-stretch release of the title button
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      titleRef.current?.animate(
+        [{ transform: 'scale(1.08, 0.88)' }, { transform: 'none' }],
+        { duration: 500, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' },
+      );
+    }
   };
 
   const handleTitleClick = (e: React.MouseEvent<HTMLDivElement>) => handleTitleBurst(e.clientX, e.clientY);
@@ -85,11 +97,12 @@ export default function Home() {
   return (
     <main className="relative h-dvh w-full overflow-hidden">
       <ConfettiLayer />
+      <PartyDecoration active={isPartyMode} visible={isTitleAndFooterVisible} avoidRef={titleRef} />
 
       {/* Title: fixed above the viewport-centered dial.
           Dial half-sizes per breakpoint: 160 / 175 / 195 / 215 / 230 px
           Gap between title and dial: 24 / 32 / 32 / 40 / 40 px
-          +1 RainbowWord line-height: text-4xl=40px (default/sm), text-5xl=48px (md+) */}
+          +1 RainbowTitle line-height: text-4xl=40px (default/sm), text-5xl=48px (md+) */}
       <div className={cn(
         "fixed left-0 right-0 z-[45] flex justify-center text-center transition-opacity duration-200",
         "bottom-[calc(50%+224px)] sm:bottom-[calc(50%+247px)] md:bottom-[calc(50%+275px)] lg:bottom-[calc(50%+303px)] xl:bottom-[calc(50%+318px)]",
@@ -101,7 +114,7 @@ export default function Home() {
           tabIndex={0}
           aria-label={isPartyMode ? 'Rainbow Party – switch to timer mode' : 'Rainbow Timer – switch to party mode'}
           aria-pressed={isPartyMode}
-          className="relative flex cursor-pointer select-none items-center justify-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="relative flex cursor-pointer select-none items-center justify-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-transform duration-[450ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-x-[1.06] active:scale-y-[0.9] active:duration-[90ms] motion-reduce:transition-none [-webkit-tap-highlight-color:transparent]"
           onClick={handleTitleClick}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -112,8 +125,7 @@ export default function Home() {
           }}
         >
           <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl font-headline flex flex-col items-center justify-center">
-            <RainbowWord key={rainbowKey} />
-            <TogglingWord isPartyMode={isPartyMode} />
+            <RainbowTitle isPartyMode={isPartyMode} />
           </h1>
         </div>
       </div>

@@ -33,6 +33,9 @@ interface Physics {
 
 const BURST_PHYSICS: Physics = { gravity: 0.125, terminal: 8, dragX: 0.075, dragY: 0.075, fade: 1, fadeAtBottom: true };
 const POINT_PHYSICS: Physics = { gravity: 0.08, terminal: 6, dragX: 0.02, dragY: 0, fade: 0.98, fadeAtBottom: false };
+const SHOWER_PHYSICS: Physics = { gravity: 0.06, terminal: 4.2, dragX: 0.015, dragY: 0, fade: 1, fadeAtBottom: true };
+/** Per-frame alpha multiplier for dissolving pieces (~0.6 s to invisible) */
+const DISSOLVE_FADE = 0.9;
 
 interface Piece {
   x: number; y: number;
@@ -47,6 +50,8 @@ interface Piece {
   /** Celebration pieces are swept away on interrupt; title bursts are not */
   burnable: boolean;
   doomed: boolean;
+  /** Fades out while it keeps falling (party mode switched off) */
+  dissolving: boolean;
   group: number;
 }
 
@@ -112,6 +117,25 @@ class ConfettiEngine {
     });
   }
 
+  /** A short, light shower falling from above the top edge (entering party mode). */
+  shower(count = 55): Promise<void> {
+    if (typeof window === 'undefined') return Promise.resolve();
+    const { innerWidth: width, innerHeight: height } = window;
+    return this.spawnGroup(count, () => this.makePiece(
+      RAINBOW_COLORS[Math.floor(Math.random() * RAINBOW_COLORS.length)],
+      Math.random() * width, -10 - Math.random() * height * 0.35,
+      Math.random() * 1.2 - 0.6, Math.random() * 1.8 + 1.6,
+      SHOWER_PHYSICS, false,
+    ));
+  }
+
+  /** Let title confetti that is still in the air fade out while it falls (leaving party mode). */
+  dissolve() {
+    for (const p of this.pieces) {
+      if (!p.burnable) p.dissolving = true;
+    }
+  }
+
   setRaining(raining: boolean) {
     this.raining = raining;
     if (raining) this.start();
@@ -139,7 +163,7 @@ class ConfettiEngine {
       w: 8 * size, h: 12 * size,
       color, alpha: baseAlpha, baseAlpha,
       fadeEnd: Math.random() * 0.13 + 0.85,
-      physics, burnable, doomed: false, group: 0,
+      physics, burnable, doomed: false, dissolving: false, group: 0,
     };
   }
 
@@ -244,9 +268,10 @@ class ConfettiEngine {
       p.rot += p.rotSpeed * k;
       p.flip += p.flipSpeed * k;
       if (ph.fade !== 1) p.alpha *= Math.pow(ph.fade, k);
+      if (p.dissolving) p.alpha *= Math.pow(DISSOLVE_FADE, k);
       if (ph.fadeAtBottom && p.y > fadeStart) {
         const range = Math.max(1, height * p.fadeEnd - fadeStart);
-        p.alpha = p.baseAlpha * (1 - Math.min(1, (p.y - fadeStart) / range));
+        p.alpha = Math.min(p.alpha, p.baseAlpha * (1 - Math.min(1, (p.y - fadeStart) / range)));
       }
 
       const dead = p.alpha <= 0.02 || p.y > height + 20
