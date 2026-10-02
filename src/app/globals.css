@@ -64,56 +64,55 @@
     --title-edge: hsl(271 60% 22% / 0.5);
   }
 
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --background: 249 40% 12%;
-      --foreground: 253 100% 94%;
-      --card: 249 35% 17%;
-      --card-foreground: 253 100% 94%;
-      --popover: 249 35% 17%;
-      --popover-foreground: 253 100% 94%;
-      --primary: 253 100% 94%;
-      --primary-foreground: 249 40% 12%;
-      --secondary: 249 35% 20%;
-      --secondary-foreground: 253 100% 94%;
-      --muted: 249 30% 20%;
-      --muted-foreground: 255 63% 79%;
-      --accent: 249 30% 22%;
-      --accent-foreground: 253 100% 94%;
-      --destructive: 0 62.8% 45%;
-      --destructive-foreground: 0 0% 98%;
-      --border: 249 25% 26%;
-      --input: 249 25% 26%;
-      --ring: 255 63% 79%;
+  /* data-theme is always resolved to light/dark by the inline script in layout.tsx */
+  :root[data-theme="dark"] {
+    --background: 249 40% 12%;
+    --foreground: 253 100% 94%;
+    --card: 249 35% 17%;
+    --card-foreground: 253 100% 94%;
+    --popover: 249 35% 17%;
+    --popover-foreground: 253 100% 94%;
+    --primary: 253 100% 94%;
+    --primary-foreground: 249 40% 12%;
+    --secondary: 249 35% 20%;
+    --secondary-foreground: 253 100% 94%;
+    --muted: 249 30% 20%;
+    --muted-foreground: 255 63% 79%;
+    --accent: 249 30% 22%;
+    --accent-foreground: 253 100% 94%;
+    --destructive: 0 62.8% 45%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 249 25% 26%;
+    --input: 249 25% 26%;
+    --ring: 255 63% 79%;
 
-      --dial-face: #221c3d;
-      --dial-ink: #b9a8ea;
-      --hub: #15122a;
-      --hub-text: #e9e2ff;
-      --hub-subtle: #b9a8ea;
-      --knob-fill: #15122a;
-      --knob-stroke: #e9e2ff;
-      --dial-shadow: rgba(0, 0, 0, 0.45);
-      --ring-0: #a35bd6;
-      --ring-1: #7b62d6;
-      --label-0: #ff5a5c;
-      --label-1: #ffa500;
-      --label-2: #faeb36;
-      --label-3: #8fd62a;
-      --label-4: #6f9cf0;
-      --label-5: #9d8cf0;
-      --label-6: #c084ee;
+    --dial-face: #221c3d;
+    --dial-ink: #b9a8ea;
+    --hub: #15122a;
+    --hub-text: #e9e2ff;
+    --hub-subtle: #b9a8ea;
+    --knob-fill: #15122a;
+    --knob-stroke: #e9e2ff;
+    --dial-shadow: rgba(0, 0, 0, 0.45);
+    --ring-0: #a35bd6;
+    --ring-1: #7b62d6;
+    --label-0: #ff5a5c;
+    --label-1: #ffa500;
+    --label-2: #faeb36;
+    --label-3: #8fd62a;
+    --label-4: #6f9cf0;
+    --label-5: #9d8cf0;
+    --label-6: #c084ee;
 
-      --control-bg: #241e40;
-      --control-shadow: rgba(0, 0, 0, 0.4);
-      --control-icon: #e9e2ff;
-      --segment-bg: #15122a;
-      --segment-active: #3a3163;
-      --segment-active-text: #ffffff;
-      --segment-text: #b9a8ea;
+    --control-bg: #241e40;
+    --control-shadow: rgba(0, 0, 0, 0.4);
+    --control-icon: #e9e2ff;
+    --segment-bg: #15122a;
+    --segment-active: #3a3163;
+    --segment-active-text: #ffffff;
+    --segment-text: #b9a8ea;
 
-      --title-edge: hsl(253 100% 94% / 0.28);
-    }
+    --title-edge: hsl(253 100% 94% / 0.28);
   }
 }
 
@@ -123,7 +122,10 @@
   }
   html {
     @apply h-full;
-    color-scheme: light dark;
+    color-scheme: light;
+  }
+  html[data-theme="dark"] {
+    color-scheme: dark;
   }
   body {
     @apply bg-background text-foreground h-full overflow-hidden;

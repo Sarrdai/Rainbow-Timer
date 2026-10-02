@@ -4,6 +4,7 @@ import { RainbowTitle } from '@/components/rainbow-title';
 import { PartyDecoration } from '@/components/party-decoration';
 import { Footer } from '@/components/footer';
 import { RainbowTimer } from '@/components/rainbow-timer';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { ConfettiLayer, confetti } from '@/components/confetti';
@@ -139,6 +140,8 @@ export default function Home() {
         onInterruptCelebration={handleInterruptCelebration}
         titleRef={titleRef}
       />
+
+      <ThemeToggle className="fixed right-4 top-[max(1rem,env(safe-area-inset-top))] z-[55]" />
 
       <div className={cn("fixed bottom-4 left-1/2 -translate-x-1/2 w-full transition-opacity duration-200", !isTitleAndFooterVisible && "pointer-events-none opacity-0")}>
         <Footer />
