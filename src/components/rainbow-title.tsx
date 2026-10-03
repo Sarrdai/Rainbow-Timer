@@ -10,7 +10,7 @@ const delayStyle = (i: number) => ({ '--d': i }) as CSSProperties;
 
 /**
  * "Rainbow Timer / Party" title.
- * - "Rainbow" is clipped from diagonal stripes; in party mode the letters wave and the stripes drift,
+ * - "Rainbow" shows each rainbow color once, one per letter; in party mode the letters wave,
  *   in timer mode a shimmer passes over it from time to time.
  * - "Timer" ⇄ "Party" flip letter by letter like a split-flap display (both words have five letters).
  * All animation is CSS-driven (see globals.css), so mode changes never re-render more than this component.
@@ -22,7 +22,7 @@ export function RainbowTitle({ isPartyMode }: { isPartyMode: boolean }) {
         const root = ref.current;
         if (!root) return;
         const measure = () => {
-            // Offset each letter's background so the stripes stay continuous across letters
+            // Offset each letter's shimmer so it sweeps continuously across letters
             root.querySelectorAll<HTMLElement>('.rainbow-letter').forEach((s) => {
                 s.style.setProperty('--x', `${s.offsetLeft}px`);
             });

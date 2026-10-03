@@ -60,7 +60,7 @@
     --segment-active-text: #4b369d;
     --segment-text: #8a63b3;
 
-    /* Title: thin offset edge that keeps the light stripes legible */
+    /* Title: thin offset edge that keeps the light letters (yellow) legible */
     --title-edge: hsl(271 60% 22% / 0.5);
   }
 
@@ -133,7 +133,6 @@
 }
 
 /* ---------- Title: "Rainbow Timer / Party" ---------- */
-@property --stripe-shift { syntax: '<length>'; inherits: true; initial-value: 0px; }
 @property --shimmer-x { syntax: '<length>'; inherits: true; initial-value: -400px; }
 
 .rainbow-title {
@@ -141,6 +140,7 @@
   display: inline-flex;
   flex-direction: column;
   align-items: center;
+  font-family: var(--font-fredoka), var(--font-inter), sans-serif;
   font-size: 48px;
   line-height: 1;
 }
@@ -148,48 +148,48 @@
 .rainbow-word {
   position: relative;
   display: flex;
-  font-weight: 900;
-  letter-spacing: -0.02em;
+  font-weight: 700;
   padding-bottom: 0.06em;
   filter: drop-shadow(0 0 0.5px var(--title-edge)) drop-shadow(0 0.045em 0 var(--title-edge));
 }
 
+/* One rainbow color per letter: "Rainbow" has exactly seven letters */
+.rainbow-letter:nth-child(1) { --c: var(--ring-6); }
+.rainbow-letter:nth-child(2) { --c: var(--ring-5); }
+.rainbow-letter:nth-child(3) { --c: var(--ring-4); }
+.rainbow-letter:nth-child(4) { --c: var(--ring-3); }
+.rainbow-letter:nth-child(5) { --c: var(--ring-2); }
+.rainbow-letter:nth-child(6) { --c: var(--ring-1); }
+.rainbow-letter:nth-child(7) { --c: var(--ring-0); }
+
 .rainbow-letter {
-  --s: 0.19em;
   display: inline-block;
   color: transparent;
   background-image:
     linear-gradient(100deg, transparent 0 38%, rgb(255 255 255 / 0.8) 50%, transparent 62% 100%),
-    repeating-linear-gradient(135deg,
-      var(--ring-6) 0 var(--s), var(--ring-5) var(--s) calc(2 * var(--s)),
-      var(--ring-4) calc(2 * var(--s)) calc(3 * var(--s)), var(--ring-3) calc(3 * var(--s)) calc(4 * var(--s)),
-      var(--ring-2) calc(4 * var(--s)) calc(5 * var(--s)), var(--ring-1) calc(5 * var(--s)) calc(6 * var(--s)),
-      var(--ring-0) calc(6 * var(--s)) calc(7 * var(--s)));
-  background-size: 4em 100%, 40em 40em;
+    linear-gradient(var(--c), var(--c));
+  background-size: 4em 100%, 100% 100%;
   background-repeat: no-repeat;
-  /* --x is the letter's offset inside the word, so the pattern runs continuously across letters */
-  background-position: calc(var(--shimmer-x) - var(--x, 0px)) 0, calc(var(--stripe-shift) - var(--x, 0px) - 20em) -20em;
+  /* --x is the letter's offset inside the word, so the shimmer sweeps continuously across letters */
+  background-position: calc(var(--shimmer-x) - var(--x, 0px)) 0, 0 0;
   -webkit-background-clip: text;
   background-clip: text;
 }
 
 [data-mode="party"] .rainbow-letter {
-  animation: title-wave 1.3s ease-in-out infinite, title-drift 2.6s linear infinite;
-  animation-delay: calc(var(--d) * -0.11s), 0s;
+  animation: title-wave 1.3s ease-in-out infinite;
+  animation-delay: calc(var(--d) * -0.11s);
 }
 [data-mode="timer"] .rainbow-letter {
   animation: title-shimmer 7s ease-in-out 1.2s infinite;
 }
 @keyframes title-wave { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.09em) rotate(-2deg); } }
-/* One stripe period (7 stripes) measured horizontally on the 45° pattern */
-@keyframes title-drift { to { --stripe-shift: calc(var(--s) * 7 * 1.41421); } }
 @keyframes title-shimmer { 0% { --shimmer-x: -4em; } 22%, 100% { --shimmer-x: 8em; } }
 
 .flap-word {
   display: flex;
   font-size: 0.78em;
-  font-weight: 800;
-  letter-spacing: -0.01em;
+  font-weight: 700;
   color: hsl(var(--card-foreground));
   margin-top: 0.02em;
 }
