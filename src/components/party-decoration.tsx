@@ -1,110 +1,66 @@
 "use client";
 
-import React, { useEffect, useRef, useState, type CSSProperties } from 'react';
+import React, { memo, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { cn } from '@/lib/utils';
-import { RAINBOW_COLORS } from './confetti';
 import { BALLOON_COLORS, CLASSIC_BALLOON, SHAPED_BALLOONS, type BalloonShape } from './balloon-shapes';
+import { DECO_SETS, type DecoLayout, type DecoTheme, type DecoVariant } from './decoration';
 
 const ALL_SHAPES = [CLASSIC_BALLOON, ...SHAPED_BALLOONS];
-/** Longest exit animation (last balloon pop + falling string) */
-const EXIT_MS = 1800;
+/** Longest exit animation: lights going out one after another, then the garland falling */
+const EXIT_MS = 2200;
 /** Entrance delays are shifted by this when a scene is rebuilt after a resize, so it appears settled */
 const SETTLED_OFFSET_S = -5;
 /** Time from a click-pop until the replacement balloon starts floating in */
 const RESPAWN_MS = 600;
+/** Fade-out of the old decoration after a theme switch (party-fade-out) */
+const FADE_MS = 500;
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const pick = <T,>(list: readonly T[]) => list[Math.floor(Math.random() * list.length)];
 const shuffle = <T,>(list: readonly T[]) => [...list].sort(() => Math.random() - 0.5);
 
-interface Fall { fallDelay: number; fallDur: number; fallRot: number }
-interface Curl extends Fall { d: string; color: string; width: number; delay: number; sway: number }
-interface Flag { d: string; shade: string; color: string; delay: number; sway: number }
-interface Garland extends Fall { twists: { d: string; color: string }[]; flags: Flag[]; delay: number }
 interface Balloon { x: number; y: number; w: number; color: string; shape: BalloonShape; delay: number; tilt: number; sway: number; bob: number; pop: number; shards: number[]; gen: number; popping?: boolean; fresh?: boolean }
+
+/** Garland and corner decoration in the variants of one theme */
+interface Deco {
+    id: number;
+    theme: DecoTheme;
+    Garland: DecoVariant;
+    Corner: DecoVariant;
+    layout: DecoLayout;
+    /** Set when a theme switch replaced this decoration; it fades out */
+    fadedAt: number | null;
+}
 
 interface Scene {
     id: number;
-    width: number;
-    height: number;
-    curls: Curl[];
-    garlands: Garland[];
+    /** The current decoration last; earlier ones are fading out */
+    decos: Deco[];
     balloons: Balloon[];
     exitedAt: number | null;
 }
 
-const fall = (min: number, max: number): Fall => ({ fallDelay: rand(min, max), fallDur: rand(0.8, 1.1), fallRot: rand(-25, 25) });
+const readTheme = (): DecoTheme => (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
 
-/** A helix seen from the side, hanging down from an anchor at the top edge; it widens as it hangs lower. */
-function curlPath(x0: number, len: number, amp: number, turns: number, dir: number) {
-    const steps = 160;
-    let d = '';
-    for (let i = 0; i <= steps; i++) {
-        const t = i / steps;
-        const x = x0 + dir * amp * (0.35 + 0.65 * t) * Math.sin(t * turns * Math.PI * 2);
-        d += `${i ? 'L' : 'M'}${x.toFixed(1)} ${(-6 + t * len).toFixed(1)}`;
-    }
-    return d;
-}
-
-function buildCurls(W: number, H: number, base: number): Curl[] {
-    const perSide = W < 600 ? 3 : 5;
-    const curls: Curl[] = [];
-    for (const side of [1, -1]) {
-        let x = side === 1 ? 14 : W - 14;
-        for (let i = 0; i < perSide; i++) {
-            const len = H * rand(0.22, 0.5) * (1 - i * 0.08);
-            curls.push({
-                d: curlPath(x, len, rand(7, 12), len / rand(34, 46), side),
-                color: RAINBOW_COLORS[(i * 2 + (side === 1 ? 0 : 1)) % RAINBOW_COLORS.length],
-                width: rand(4, 6),
-                delay: base + 0.25 + i * 0.09,
-                sway: -rand(0, 3.4),
-                ...fall(0.05, 0.35),
-            });
-            x += side * rand(26, 38);
-        }
-    }
-    return curls;
-}
-
-/** Twisted two-tone crepe streamer hanging in scallops across the top edge, with pennants. */
-function buildGarlands(W: number, base: number, avoid: DOMRect | null): Garland[] {
-    const scallops = Math.max(2, Math.round(W / 420));
-    const span = (W + 40) / scallops;
-    const top = 6;
-    const sag = Math.min(70, span * 0.16);
-    const garlands: Garland[] = [];
-    for (let k = 0; k < scallops; k++) {
-        const x0 = -20 + k * span;
-        const delay = base + 0.05 + Math.abs(k - (scallops - 1) / 2) * 0.08;
-        const y = (x: number) => top + sag * (1 - ((x - x0 - span / 2) / (span / 2)) ** 2);
-        const pair = [RAINBOW_COLORS[(k * 2) % 7], RAINBOW_COLORS[(k * 2 + 3) % 7]];
-        const twists = [0, Math.PI].map((phase, j) => {
-            let d = '';
-            for (let x = x0; x <= x0 + span + 0.5; x += 3) {
-                d += `${d ? 'L' : 'M'}${x.toFixed(1)} ${(y(x) + 4 * Math.sin(x / 9 + phase)).toFixed(1)}`;
-            }
-            return { d, color: pair[j] };
-        });
-        const count = Math.max(3, Math.floor(span / 62));
-        const flags: Flag[] = [];
-        for (let f = 1; f < count; f++) {
-            const fx = x0 + (f * span) / count;
-            const fy = y(fx) + 2;
-            // Leave out pennants that would hang behind the title
-            if (avoid && fx > avoid.left - 20 && fx < avoid.right + 20 && fy + 32 > avoid.top) continue;
-            flags.push({
-                d: `M${fx - 15} ${fy} L${fx + 15} ${fy} L${fx} ${fy + 32} Z`,
-                shade: `M${fx - 15} ${fy} L${fx + 15} ${fy} L${fx + 11} ${fy + 4} L${fx - 11} ${fy + 4} Z`,
-                color: RAINBOW_COLORS[(f + k * 3) % 7],
-                delay: delay + 0.35 + f * 0.06,
-                sway: -rand(0, 2.8),
-            });
-        }
-        garlands.push({ twists, flags, delay, ...fall(0.25, 0.45) });
-    }
-    return garlands;
+/** Picks a random garland and corner decoration for the theme, or keeps those of `keep` (rebuild after a resize) */
+function buildDeco(id: number, theme: DecoTheme, settled: boolean, avoid: DOMRect | null, keep?: Deco): Deco {
+    const W = window.innerWidth;
+    const set = DECO_SETS[theme];
+    return {
+        id,
+        theme,
+        Garland: keep?.Garland ?? pick(set.garlands),
+        Corner: keep?.Corner ?? pick(set.corners),
+        layout: {
+            width: W,
+            height: window.innerHeight,
+            small: W < 600,
+            base: settled ? SETTLED_OFFSET_S : 0,
+            avoid,
+            seed: keep?.layout.seed ?? Math.floor(Math.random() * 2 ** 31),
+        },
+        fadedAt: null,
+    };
 }
 
 const makeShards = () => Array.from({ length: 8 }, (_, s) => s * 45 + rand(-10, 10));
@@ -152,44 +108,30 @@ function buildBalloons(W: number, H: number, base: number): Balloon[] {
     }));
 }
 
-function buildScene(id: number, settled: boolean, avoid: DOMRect | null): Scene {
-    const W = window.innerWidth;
-    const H = window.innerHeight;
+function buildScene(sceneId: number, deco: Deco, settled: boolean): Scene {
     const base = settled ? SETTLED_OFFSET_S : 0;
-    return { id, width: W, height: H, curls: buildCurls(W, H, base), garlands: buildGarlands(W, base, avoid), balloons: buildBalloons(W, H, base), exitedAt: null };
+    return { id: sceneId, decos: [deco], balloons: buildBalloons(window.innerWidth, window.innerHeight, base), exitedAt: null };
 }
 
 const vars = (v: Record<string, string | number>) => v as CSSProperties;
-const fallVars = (f: Fall, H: number) => vars({ '--fall-delay': `${f.fallDelay}s`, '--fall-dur': `${f.fallDur}s`, '--fall-rot': `${f.fallRot}deg`, '--fall-dy': `${H + 60}px` });
+
+/** Memoized, so popping a balloon does not redraw the decoration */
+const DecoView = memo(function DecoView({ deco, exiting }: { deco: Deco; exiting: boolean }) {
+    const { width: W, height: H } = deco.layout;
+    return (
+        <svg className={cn('party-deco fixed inset-0 z-[40]', exiting && 'is-exiting', deco.fadedAt !== null && 'is-faded')} width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+            <deco.Corner layout={deco.layout} />
+            <deco.Garland layout={deco.layout} />
+        </svg>
+    );
+});
 
 function SceneView({ scene, onPop }: { scene: Scene; onPop: (index: number, x: number, y: number) => void }) {
-    const { width: W, height: H } = scene;
     const exiting = scene.exitedAt !== null;
     return (
         <>
-            {/* Streamers and garland hang behind the title */}
-            <svg className={cn('party-deco fixed inset-0 z-[40]', exiting && 'is-exiting')} width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
-                {scene.curls.map((c, i) => (
-                    <g key={i} className="party-curl" style={{ ...fallVars(c, H), ...vars({ '--sway-delay': `${c.sway}s` }) }}>
-                        <path d={c.d} pathLength={1} fill="none" stroke={c.color} strokeWidth={c.width} strokeLinecap="round" strokeLinejoin="round" style={vars({ '--delay': `${c.delay}s` })} />
-                    </g>
-                ))}
-                {scene.garlands.map((g, i) => (
-                    <g key={i} className="party-garland" style={{ ...fallVars(g, H), ...vars({ '--delay': `${g.delay}s` }) }}>
-                        {g.twists.map((t, j) => (
-                            <path key={j} className="party-twist" d={t.d} pathLength={1} fill="none" stroke={t.color} strokeWidth={4.5} strokeLinecap="round" />
-                        ))}
-                        {g.flags.map((f, j) => (
-                            <g key={j} className="party-flag" style={vars({ '--delay': `${f.delay}s` })}>
-                                <g className="party-flag-sway" style={vars({ '--sway-delay': `${f.sway}s` })}>
-                                    <path d={f.d} fill={f.color} />
-                                    <path d={f.shade} fill="#000" opacity={0.12} />
-                                </g>
-                            </g>
-                        ))}
-                    </g>
-                ))}
-            </svg>
+            {/* Garland and corner decoration hang behind the title */}
+            {scene.decos.map((deco) => <DecoView key={deco.id} deco={deco} exiting={exiting} />)}
             {/* Balloons float in front of the dial, below the confetti */}
             <div className={cn('party-deco fixed inset-0 z-[50]', exiting && 'is-exiting')}>
                 {scene.balloons.map((b, i) => (
@@ -221,9 +163,11 @@ function SceneView({ scene, onPop }: { scene: Scene; onPop: (index: number, x: n
 }
 
 /**
- * Party decoration around the whole window: garland, curly streamers and balloons.
- * Entering party mode builds a new scene that unfolds into place; leaving it pops the balloons
- * and drops everything else to the floor. Scenes are independent, so fast toggling overlaps cleanly.
+ * Party decoration around the whole window: a garland, decoration in the top corners and balloons.
+ * Every party picks a random garland and corner variant that fits the theme: fabric and paper in light mode,
+ * lights in dark mode. Entering party mode builds a new scene that unfolds into place; leaving it switches the
+ * lights off, pops the balloons and drops everything else to the floor. Scenes are independent, so fast
+ * toggling overlaps cleanly.
  */
 interface PartyDecorationProps {
     active: boolean;
@@ -262,7 +206,8 @@ export function PartyDecoration({ active, visible, avoidRef, onBalloonPop }: Par
 
     useEffect(() => {
         if (active) {
-            const scene = buildScene(nextId.current++, false, avoidRef?.current?.getBoundingClientRect() ?? null);
+            const deco = buildDeco(nextId.current++, readTheme(), false, avoidRef?.current?.getBoundingClientRect() ?? null);
+            const scene = buildScene(nextId.current++, deco, false);
             setScenes((s) => [...s, scene]);
         } else {
             const now = performance.now();
@@ -270,17 +215,38 @@ export function PartyDecoration({ active, visible, avoidRef, onBalloonPop }: Par
         }
     }, [active, avoidRef]);
 
-    // Drop scenes once their exit animation has finished
+    // A theme switch during the party fades the decoration over to variants of the new theme; the balloons stay
     useEffect(() => {
-        if (!scenes.some((s) => s.exitedAt !== null)) return;
+        if (!active) return;
+        const observer = new MutationObserver(() => {
+            const theme = readTheme();
+            const deco = buildDeco(nextId.current++, theme, false, avoidRef?.current?.getBoundingClientRect() ?? null);
+            const now = performance.now();
+            setScenes((s) => s.map((sc) => {
+                if (sc.exitedAt !== null || sc.decos[sc.decos.length - 1].theme === theme) return sc;
+                return { ...sc, decos: [...sc.decos.map((d) => (d.fadedAt === null ? { ...d, fadedAt: now } : d)), deco] };
+            }));
+        });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        return () => observer.disconnect();
+    }, [active, avoidRef]);
+
+    // Drop scenes once their exit animation has finished, and replaced decorations once they have faded out
+    useEffect(() => {
+        if (!scenes.some((s) => s.exitedAt !== null || s.decos.length > 1)) return;
         const t = setTimeout(() => {
             const now = performance.now();
-            setScenes((s) => s.filter((sc) => sc.exitedAt === null || now - sc.exitedAt < EXIT_MS));
+            setScenes((s) => s
+                .filter((sc) => sc.exitedAt === null || now - sc.exitedAt < EXIT_MS)
+                .map((sc) => {
+                    const decos = sc.decos.filter((d) => d.fadedAt === null || now - d.fadedAt < FADE_MS);
+                    return decos.length === sc.decos.length ? sc : { ...sc, decos };
+                }));
         }, EXIT_MS);
         return () => clearTimeout(t);
     }, [scenes]);
 
-    // Geometry is in pixels; rebuild the active scene in its settled state after a resize
+    // Geometry is in pixels; rebuild the active scene in its settled state after a resize, with the same variants
     useEffect(() => {
         if (!active) return;
         let timer: ReturnType<typeof setTimeout>;
@@ -288,7 +254,12 @@ export function PartyDecoration({ active, visible, avoidRef, onBalloonPop }: Par
             clearTimeout(timer);
             timer = setTimeout(() => {
                 const avoid = avoidRef?.current?.getBoundingClientRect() ?? null;
-                setScenes((s) => s.map((sc) => (sc.exitedAt === null ? buildScene(nextId.current++, true, avoid) : sc)));
+                const [sceneId, decoId] = [nextId.current++, nextId.current++];
+                setScenes((s) => s.map((sc) => {
+                    if (sc.exitedAt !== null) return sc;
+                    const current = sc.decos[sc.decos.length - 1];
+                    return buildScene(sceneId, buildDeco(decoId, current.theme, true, avoid, current), true);
+                }));
             }, 200);
         };
         window.addEventListener('resize', onResize);
