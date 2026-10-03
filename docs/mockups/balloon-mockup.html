@@ -1,0 +1,424 @@
+<title>Rainbow Timer Ballons</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;700;800&display=swap">
+<style>
+  /* Layout: live party preview on top (pop-able), color controls, then a 5×3 / 3×5 grid of the 15 balloon proposals. */
+  :root {
+    --bg: hsl(300 65% 92%);
+    --surface: hsl(0 0% 100% / 0.72);
+    --surface-active: #ffffff;
+    --ink: hsl(271 47% 25%);
+    --ink-soft: hsl(268 38% 47%);
+    --line: hsl(300 30% 82%);
+    --focus: #4b369d;
+    --fav: #e8336e;
+    --string: hsl(268 38% 47%);
+    --font-display: "Fredoka", "Nunito", system-ui, sans-serif;
+    --font-ui: "Nunito", "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: hsl(249 40% 12%);
+      --surface: hsl(249 35% 17%);
+      --surface-active: hsl(249 32% 24%);
+      --ink: hsl(253 100% 94%);
+      --ink-soft: hsl(255 63% 79%);
+      --line: hsl(249 25% 28%);
+      --focus: #c9b8ff;
+      --fav: #ff6f9f;
+      --string: hsl(255 63% 79%);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: hsl(249 40% 12%);
+    --surface: hsl(249 35% 17%);
+    --surface-active: hsl(249 32% 24%);
+    --ink: hsl(253 100% 94%);
+    --ink-soft: hsl(255 63% 79%);
+    --line: hsl(249 25% 28%);
+    --focus: #c9b8ff;
+    --fav: #ff6f9f;
+    --string: hsl(255 63% 79%);
+    color-scheme: dark;
+  }
+
+  body { background: var(--bg); color: var(--ink); font: 500 15px/1.5 var(--font-ui); }
+  .page { max-width: 1080px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 64px; display: grid; gap: 36px; }
+  header { display: grid; gap: 4px; }
+  header p { margin: 0; color: var(--ink-soft); max-width: 64ch; }
+  h1 { margin: 0; font-size: 1.05rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+  h2 { margin: 0; font: 600 1.35rem/1.2 var(--font-display); text-wrap: balance; }
+  section { display: grid; gap: 14px; }
+  section > p { margin: 0; color: var(--ink-soft); max-width: 65ch; }
+  button { font: inherit; color: inherit; }
+  button:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+
+  /* Live preview */
+  .stage { display: grid; gap: 16px; padding-block: 28px 18px; padding-inline: 16px; border-radius: 28px; background: var(--surface); border: 1px solid var(--line); }
+  .sky { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 4px 6px; min-height: 200px; }
+  .str { stroke: var(--string); }
+  .sb { width: clamp(52px, 8.4vw, 80px); transform: translateY(var(--dy)); }
+  .sb svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .bob { transform-origin: 50% 100%; animation: bob var(--bob) ease-in-out var(--sway) infinite; position: relative; }
+  @keyframes bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-8px) rotate(3deg); } }
+  .sb .body { cursor: pointer; transform-box: fill-box; transform-origin: 50% 50%; }
+  .sb.is-popping .body { animation: burst 0.14s ease-out forwards; pointer-events: none; }
+  .sb.is-popping .str { transform-box: fill-box; transform-origin: 50% 0; animation: drop 0.7s cubic-bezier(0.5, 0, 0.9, 0.6) 0.05s forwards; }
+  @keyframes burst { to { transform: scale(1.3); opacity: 0; } }
+  @keyframes drop { to { transform: translateY(160px) rotate(40deg); opacity: 0; } }
+  .sb.is-fresh { animation: rise 1.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  @keyframes rise { from { transform: translateY(calc(var(--dy) + 260px)); opacity: 0; } 30% { opacity: 1; } }
+  .shard { position: absolute; left: 50%; top: 22%; width: 5px; height: 14px; border-radius: 3px; background: var(--c); opacity: 0; transform: translate(-50%, -50%) rotate(var(--a)); animation: shard 0.42s ease-out both; }
+  @keyframes shard { 1% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--a)) translateY(-56px); } }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; justify-content: center; align-items: center; color: var(--ink-soft); font-size: 0.9rem; }
+  .controls b { color: var(--ink); font-weight: 800; }
+  .swatches { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); }
+  .swatches button { cursor: pointer; border: 0; width: 28px; height: 28px; border-radius: 50%; background: var(--sw); box-shadow: inset 0 -3px 0 hsl(0 0% 0% / 0.15); }
+  .swatches button[data-color="mix"] { width: auto; padding-inline: 12px; background: var(--surface-active); color: var(--ink-soft); font-weight: 800; font-size: 0.85rem; box-shadow: none; }
+  .swatches button[aria-pressed="true"] { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .swatches button[data-color="mix"][aria-pressed="true"] { color: var(--ink); }
+
+  /* Proposal cards: 5 columns on desktop, 3 on phones (15 fills both) */
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  @media (min-width: 860px) { .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+  .opt { cursor: pointer; position: relative; display: grid; grid-template-rows: auto 1fr; gap: 8px; padding: 14px 10px 12px; border-radius: 18px; background: var(--surface); border: 2px solid transparent; text-align: center; transition: border-color .15s, transform .15s; min-width: 0; }
+  .opt:hover { transform: translateY(-2px); }
+  .opt[aria-pressed="true"] { border-color: var(--focus); background: var(--surface-active); }
+  .opt svg.art { display: block; width: min(100%, 120px); height: auto; justify-self: center; overflow: visible; }
+  .opt-label { display: grid; gap: 2px; align-content: start; font-size: 0.82rem; line-height: 1.35; overflow-wrap: anywhere; hyphens: auto; }
+  @media (max-width: 520px) { .opt { padding-inline: 6px; } .opt-name { font-size: 0.92rem; } .chip { letter-spacing: 0.03em; padding-inline: 5px; } }
+  .opt-name { font: 600 1rem/1.2 var(--font-display); }
+  .opt-name .no { color: var(--ink-soft); font-variant-numeric: tabular-nums; margin-right: 0.3em; }
+  .opt-info { color: var(--ink-soft); }
+  .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin-top: 4px; }
+  .chip { font-size: 0.66rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-soft); }
+  .fav { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; }
+  .fav path { fill: none; stroke: var(--ink-soft); stroke-width: 2; opacity: 0.5; }
+  .opt[aria-pressed="true"] .fav path { fill: var(--fav); stroke: var(--fav); opacity: 1; }
+
+  .picked { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 14px 16px; border-radius: 18px; border: 1px dashed var(--line); }
+  .picked-text { flex: 1 1 260px; min-width: 0; margin: 0; }
+  .picked-text b { font-weight: 800; }
+  .btn { cursor: pointer; padding: 7px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-active); font-weight: 800; font-size: 0.88rem; }
+  .btn[disabled] { cursor: default; opacity: 0.5; }
+  .notes { margin: 0; padding-left: 1.2em; color: var(--ink-soft); max-width: 70ch; display: grid; gap: 4px; }
+  .notes b { color: var(--ink); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bob, .sb.is-fresh, .shard { animation: none !important; }
+    .sb.is-popping .body, .sb.is-popping .str { animation: fade 0.2s forwards !important; }
+    @keyframes fade { to { opacity: 0; } }
+    .opt { transition: none; }
+  }
+</style>
+
+<main class="page" lang="de">
+  <header>
+    <h1>Rainbow Timer · Ballon-Mockup</h1>
+    <p>15 Vorschläge für neue Party-Ballons: Herzen, zwei Einhörner, Tiere und ein Stern. Markiere deine Favoriten mit einem Klick auf die Karte. Die Vorschau oben zeigt dann nur noch deine Auswahl.</p>
+  </header>
+
+  <div class="stage">
+    <div class="sky" id="sky"></div>
+    <div class="controls">
+      <span id="preview-label"></span>
+      <div class="swatches" id="swatches" role="group" aria-label="Ballonfarbe"></div>
+    </div>
+  </div>
+
+  <section>
+    <h2>Die 15 Vorschläge</h2>
+    <p>Alle Formen nutzen dasselbe Raster wie die heutigen Ballons. Schnur, Platzen und Nachschweben funktionieren also wie bisher. Ballons mit „alle Farben“ übernehmen die zufällige Ballonfarbe der App, die anderen haben feste Farben.</p>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <div class="picked">
+    <p class="picked-text" id="picked-text"></p>
+    <button type="button" class="btn" id="copy">Auswahl kopieren</button>
+    <button type="button" class="btn" id="clear">Auswahl leeren</button>
+  </div>
+
+  <section>
+    <h2>So würde es in der App laufen</h2>
+    <ul class="notes">
+      <li><b>Mischung:</b> Jede Party verteilt die ausgewählten Formen zufällig auf die Ballon-Plätze, die klassischen runden Ballons bleiben dabei.</li>
+      <li><b>Platzen:</b> Ein angeklickter Ballon platzt wie heute und schwebt als neue Form in neuer Farbe nach.</li>
+      <li><b>Feste Farben:</b> Einhorn-Kopf, Schweinchen und Panda behalten ihre Farben, die Konfetti-Schnipsel beim Platzen nehmen die Hauptfarbe.</li>
+    </ul>
+  </section>
+</main>
+
+<script>
+  const COLORS = [
+    { c: '#e81416', n: 'Rot' }, { c: '#ffa500', n: 'Orange' }, { c: '#79c314', n: 'Grün' },
+    { c: '#487de7', n: 'Blau' }, { c: '#70369d', n: 'Lila' }, { c: '#faeb36', n: 'Gelb' },
+  ];
+  const RAINBOW = ['#e81416', '#ffa500', '#faeb36', '#79c314', '#487de7', '#4b369d', '#70369d'];
+  const PASTEL = ['#ff8fab', '#ffd166', '#9be564', '#7cc6fe', '#c3a1ff'];
+  const INK = '#2d1b3d';
+  const PINK = '#ff9ec8';
+  const BALLOON = 'M50 4 C82 4 96 30 96 58 C96 90 70 110 53 113 L47 113 C30 110 4 90 4 58 C4 30 18 4 50 4 Z';
+  const HEART = 'M50 108 C22 88 4 68 4 42 C4 21 18 8 34 8 C43 8 48 13 50 21 C52 13 57 8 66 8 C82 8 96 21 96 42 C96 68 78 88 50 108 Z';
+  let uid = 0;
+
+  // Flat two-tone shading like the current balloon: darker crescent at the lower right, lit area offset up-left
+  function shade(shapes, fill, { dark = 0.14, outline } = {}) {
+    const id = `clip${uid++}`;
+    return `<clipPath id="${id}">${shapes}</clipPath>`
+      + (outline ? `<g fill="${outline}" stroke="${outline}" stroke-width="4" stroke-linejoin="round">${shapes}</g>` : '')
+      + `<g fill="${fill}">${shapes}</g><g fill="#000" opacity="${dark}">${shapes}</g>`
+      + `<g clip-path="url(#${id})"><g fill="${fill}" transform="translate(-5 -4)">${shapes}</g></g>`;
+  }
+  const hl = (x, y, rx, ry, rot = -30, op = 0.45) => `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" transform="rotate(${rot} ${x} ${y})" fill="#fff" opacity="${op}"/>`;
+  const eye = (x, y, rx = 4.5, ry = rx * 1.3) => `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" fill="${INK}"/><circle cx="${x + rx * 0.35}" cy="${y - ry * 0.4}" r="${rx * 0.38}" fill="#fff"/>`;
+  const eyes = (x1, x2, y, rx, ry) => eye(x1, y, rx, ry) + eye(x2, y, rx, ry);
+  const happyEyes = (x1, x2, y, w = 6) => `<path d="M${x1 - w} ${y} Q${x1} ${y + w} ${x1 + w} ${y} M${x2 - w} ${y} Q${x2} ${y + w} ${x2 + w} ${y} M${x1 - w} ${y} l-3.5 -3 M${x2 + w} ${y} l3.5 -3" fill="none" stroke="${INK}" stroke-width="2.6" stroke-linecap="round"/>`;
+  const blush = (x1, x2, y, rx = 6, ry = 3.5, op = 0.5) => `<g fill="#ff6fa5" opacity="${op}"><ellipse cx="${x1}" cy="${y}" rx="${rx}" ry="${ry}"/><ellipse cx="${x2}" cy="${y}" rx="${rx}" ry="${ry}"/></g>`;
+  const line = (d, w = 2.2, color = INK, op = 1) => `<path d="${d}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" opacity="${op}"/>`;
+  const knot = (c, b) => `<path d="M44 ${b + 7} L50 ${b - 2} L56 ${b + 7} Z" fill="${c}"/>`;
+  const valve = (c, b) => `<rect x="47" y="${b - 3}" width="6" height="9" rx="2" fill="${c}"/><rect x="47" y="${b - 3}" width="6" height="9" rx="2" fill="#000" opacity=".2"/>`;
+  const others = (c) => { const i = COLORS.findIndex((x) => x.c === c); return [COLORS[(i + 2) % 6].c, COLORS[(i + 4) % 6].c]; };
+
+  /** Polygon with rounded corners: each vertex is cut at fraction t of its edges and joined by a quadratic curve. */
+  function roundPoly(pts, t) {
+    const n = pts.length, lerp = (a, b, f) => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+    let d = '';
+    pts.forEach((p, i) => {
+      const a = lerp(p, pts[(i - 1 + n) % n], t[i % 2]), b = lerp(p, pts[(i + 1) % n], t[i % 2]);
+      d += `${i ? 'L' : 'M'}${a[0].toFixed(1)} ${a[1].toFixed(1)} Q${p[0].toFixed(1)} ${p[1].toFixed(1)} ${b[0].toFixed(1)} ${b[1].toFixed(1)} `;
+    });
+    return d + 'Z';
+  }
+
+  /** Twisted modelling-balloon segment (capsule) with a highlight along its upper side. */
+  function seg(x1, y1, x2, y2, w, c, far) {
+    const L = Math.hypot(x2 - x1, y2 - y1), a = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+    let nx = (y2 - y1) / L, ny = -(x2 - x1) / L;
+    if (ny > 0) { nx = -nx; ny = -ny; }
+    const o = w * 0.22, p = (f) => [x1 + (x2 - x1) * f + nx * o, y1 + (y2 - y1) * f + ny * o];
+    const rect = `<rect x="${x1 - w / 2}" y="${y1 - w / 2}" width="${L + w}" height="${w}" rx="${w / 2}" transform="rotate(${a.toFixed(1)} ${x1} ${y1})"`;
+    const [p1, p2] = [p(0.1), p(0.75)];
+    return `${rect} fill="${c}" stroke="#000" stroke-opacity=".22" stroke-width="1.3"/>`
+      + (far ? `${rect} fill="#000" opacity=".14"/>` : '')
+      + `<path d="M${p1[0].toFixed(1)} ${p1[1].toFixed(1)} L${p2[0].toFixed(1)} ${p2[1].toFixed(1)}" stroke="#fff" stroke-width="${(w * 0.2).toFixed(1)}" stroke-linecap="round" opacity=".45"/>`;
+  }
+
+  // Every draw(c) returns the body markup (in the app's 100×300 balloon space) and where the string starts
+  const TYPES = [
+    { id: 'heart', name: 'Herz', group: 'Herz', info: 'Folienherz mit Glanzlicht', colors: 'alle Farben',
+      draw: (c) => ({ body: shade(`<path d="${HEART}"/>`, c) + hl(25, 30, 7, 13, -35) + hl(40, 19, 2.6, 2.6, 0, 0.6) + valve(c, 108), start: 113 }) },
+    { id: 'heart-face', name: 'Herz mit Gesicht', group: 'Herz', info: 'Kawaii-Herz, lächelnd', colors: 'alle Farben',
+      draw: (c) => ({ body: shade(`<path d="${HEART}"/>`, c) + hl(25, 30, 7, 13, -35) + eyes(38, 62, 50) + blush(28, 72, 61, 6, 3.5, 0.55) + line('M44 61 Q50 67 56 61', 2.4) + valve(c, 108), start: 113 }) },
+    { id: 'heart-trio', name: 'Herz-Trio', group: 'Herz', info: 'drei Herzen an einer Schnur', colors: 'gemischt',
+      draw: (c) => {
+        const [c2, c3] = others(c);
+        const small = (ox, oy, s, col) => shade(`<path d="${HEART}" transform="translate(${ox} ${oy}) scale(${s})"/>`, col) + hl(ox + 25 * s, oy + 30 * s, 7 * s, 13 * s, -35);
+        const strings = `<path class="str" d="M22 55 Q30 92 50 116 M78 55 Q70 92 50 116 M50 83 L50 116" fill="none" stroke-width="1.4"/>`;
+        return { body: strings + small(0, 8, 0.44, c2) + small(56, 8, 0.44, c3) + small(25, 30, 0.5, c), start: 116 };
+      } },
+    { id: 'unicorn-head', name: 'Einhorn-Kopf', group: 'Einhorn', info: 'Regenbogenmähne, goldenes Horn', colors: 'feste Farben', fixed: '#c3a1ff',
+      draw: () => {
+        const W = '#fdf8ff', LINE = '#d9c8ee';
+        const back = [[13, 58, 9, 3], [10, 71, 9, 4], [11, 84, 8.5, 5], [15, 97, 8, 6]].map(([x, y, r, k]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${RAINBOW[k]}"/>`).join('');
+        const front = [[22, 51, 8, 2], [32, 44, 8, 1], [42, 39, 8, 0]].map(([x, y, r, k]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${RAINBOW[k]}"/>`).join('');
+        const ears = '<path d="M26 50 C22 36 24 22 30 12 C38 20 44 30 44 40 Z"/><path d="M74 50 C78 36 76 22 70 12 C62 20 56 30 56 40 Z"/>';
+        const head = '<path d="M50 34 C74 34 88 50 88 70 C88 94 72 112 50 112 C28 112 12 94 12 70 C12 50 26 34 50 34 Z"/>';
+        const horn = `<path d="M44 37 L50 3 L56 37 Z" fill="#ffc94d" stroke="#ffc94d" stroke-width="3" stroke-linejoin="round"/>`
+          + line('M45.5 30 L55 26.5 M46.8 22 L53.8 19.4 M48.1 14 L52.4 12.4', 2, '#e6a417');
+        return { body: back + shade(ears, W, { dark: 0.06, outline: LINE })
+          + `<g fill="${PINK}" opacity=".8"><path d="M30 42 C28 34 29 26 32 20 C36 25 39 31 39 37 Z"/><path d="M70 42 C72 34 71 26 68 20 C64 25 61 31 61 37 Z"/></g>`
+          + shade(head, W, { dark: 0.06, outline: LINE }) + front + horn
+          + happyEyes(36, 64, 69) + blush(29, 71, 81, 6, 3.5, 0.55)
+          + `<ellipse cx="50" cy="96" rx="22" ry="13" fill="#f7d4ec"/><g fill="#d98bb8"><ellipse cx="43" cy="96" rx="2.2" ry="3"/><ellipse cx="57" cy="96" rx="2.2" ry="3"/></g>`
+          + valve('#e9dcf5', 112), start: 117 };
+      } },
+    { id: 'unicorn-balloon', name: 'Einhorn-Ballon', group: 'Einhorn', info: 'runder Ballon mit Horn und Locke', colors: 'alle Farben',
+      draw: (c) => {
+        const ears = '<path d="M20 40 C18 26 20 14 25 6 C32 12 40 20 42 30 Z"/><path d="M80 40 C82 26 80 14 75 6 C68 12 60 20 58 30 Z"/>';
+        const curls = [[43, 28], [37, 31], [31, 35], [26, 40], [22, 46]].map(([x, y], k) => `<circle cx="${x}" cy="${y}" r="5.4" fill="${PASTEL[k]}"/>`).join('');
+        return { body: shade(ears, c)
+          + `<g fill="${PINK}" opacity=".85"><path d="M25 32 C24 24 25 17 28 12 C32 16 36 21 37 27 Z"/><path d="M75 32 C76 24 75 17 72 12 C68 16 64 21 63 27 Z"/></g>`
+          + shade(`<path d="${BALLOON}" transform="translate(8 18.1) scale(.84)"/>`, c) + hl(30, 60, 6, 11, -20)
+          + curls + `<path d="M44.5 27 L50 -2 L55.5 27 Z" fill="#ffc94d" stroke="#ffc94d" stroke-width="2.5" stroke-linejoin="round"/>`
+          + line('M46 20 L54.4 17 M47.4 12 L53 10', 1.8, '#e6a417')
+          + happyEyes(37, 63, 66, 5) + blush(30, 70, 76) + line('M46 77 Q50 80 54 77', 2) + knot(c, 113), start: 118 };
+      } },
+    { id: 'cat', name: 'Katze', group: 'Tier', info: 'Spitzohren und Schnurrhaare', colors: 'alle Farben',
+      draw: (c) => ({ body: shade('<ellipse cx="50" cy="70" rx="42" ry="37"/><path d="M12 60 C10 40 12 22 17 14 C22 11 35 22 46 34 Z"/><path d="M88 60 C90 40 88 22 83 14 C78 11 65 22 54 34 Z"/>', c)
+          + `<g fill="${PINK}" opacity=".85"><path d="M19 44 C18 34 19 26 22 21 C25 21 31 26 37 32 Z"/><path d="M81 44 C82 34 81 26 78 21 C75 21 69 26 63 32 Z"/></g>`
+          + hl(23, 60, 5, 9, -20) + eyes(36, 64, 67) + blush(28, 72, 79, 5.5, 3.2)
+          + '<path d="M46 77 Q50 75 54 77 L50 82 Z" fill="#ff7aa8"/>' + line('M50 82 Q47 88 42 85 M50 82 Q53 88 58 85', 2)
+          + line('M29 80 L11 77 M29 85 L12 89 M71 80 L89 77 M71 85 L88 89', 1.6, INK, 0.5) + knot(c, 107), start: 112 }) },
+    { id: 'bear', name: 'Teddybär', group: 'Tier', info: 'runde Ohren, helle Schnauze', colors: 'alle Farben',
+      draw: (c) => ({ body: shade('<circle cx="18" cy="32" r="14"/><circle cx="82" cy="32" r="14"/><circle cx="50" cy="66" r="40"/>', c)
+          + '<g fill="#fff" opacity=".35"><circle cx="18" cy="32" r="7"/><circle cx="82" cy="32" r="7"/></g>'
+          + hl(29, 44, 6, 10, -35) + '<ellipse cx="50" cy="82" rx="18" ry="13" fill="#fff" opacity=".5"/>'
+          + eyes(35, 65, 61) + blush(26, 74, 73) + `<ellipse cx="50" cy="77" rx="6" ry="4.5" fill="${INK}"/>`
+          + line('M50 81.5 V86 M44 87 Q50 92 56 87', 2) + knot(c, 106), start: 111 }) },
+    { id: 'bunny', name: 'Hase', group: 'Tier', info: 'lange Ohren, Hasenzähne', colors: 'alle Farben',
+      draw: (c) => ({ body: shade('<ellipse cx="34" cy="30" rx="10" ry="27" transform="rotate(-10 34 30)"/><ellipse cx="66" cy="30" rx="10" ry="27" transform="rotate(10 66 30)"/><ellipse cx="50" cy="75" rx="37" ry="32"/>', c)
+          + `<g fill="${PINK}" opacity=".85"><ellipse cx="34" cy="29" rx="4.8" ry="18" transform="rotate(-10 34 29)"/><ellipse cx="66" cy="29" rx="4.8" ry="18" transform="rotate(10 66 29)"/></g>`
+          + hl(27, 60, 5, 8, -35) + eyes(38, 62, 72) + blush(28, 72, 82)
+          + '<rect x="47" y="86" width="6" height="6" rx="1.5" fill="#fff" stroke="#2d1b3d" stroke-width="1"/><ellipse cx="50" cy="82" rx="4.5" ry="3.2" fill="#ff7aa8"/>'
+          + line('M50 85 Q46 90 42 87 M50 85 Q54 90 58 87', 2) + knot(c, 107), start: 112 }) },
+    { id: 'frog', name: 'Frosch', group: 'Tier', info: 'Glubschaugen, breites Grinsen', colors: 'alle Farben',
+      draw: (c) => ({ body: shade('<circle cx="28" cy="42" r="17"/><circle cx="72" cy="42" r="17"/><ellipse cx="50" cy="74" rx="44" ry="32"/>', c)
+          + hl(20, 68, 5, 8, -40) + '<g fill="#fff"><circle cx="28" cy="40" r="10.5"/><circle cx="72" cy="40" r="10.5"/></g>'
+          + `<g fill="${INK}"><circle cx="29" cy="42" r="5.5"/><circle cx="71" cy="42" r="5.5"/></g><g fill="#fff"><circle cx="31" cy="40" r="1.8"/><circle cx="73" cy="40" r="1.8"/></g>`
+          + `<g fill="${INK}" opacity=".55"><circle cx="45" cy="67" r="1.4"/><circle cx="55" cy="67" r="1.4"/></g>`
+          + blush(20, 80, 80) + line('M28 79 Q50 97 72 79', 2.6) + knot(c, 106), start: 111 }) },
+    { id: 'pig', name: 'Schweinchen', group: 'Tier', info: 'Ringelrosa mit Rüssel', colors: 'feste Farben', fixed: '#ff9cc6',
+      draw: () => ({ body: shade('<path d="M18 50 C12 34 14 20 20 12 C28 16 38 24 42 34 Z"/><path d="M82 50 C88 34 86 20 80 12 C72 16 62 24 58 34 Z"/><ellipse cx="50" cy="70" rx="42" ry="38"/>', '#ff9cc6', { dark: 0.1 })
+          + '<g fill="#f06aa5" opacity=".55"><path d="M22 40 C20 32 21 24 24 19 C29 22 34 27 36 32 Z"/><path d="M78 40 C80 32 79 24 76 19 C71 22 66 27 64 32 Z"/></g>'
+          + hl(30, 48, 6, 10, -35) + eyes(34, 66, 62) + blush(24, 76, 78, 6, 3.5, 0.45)
+          + '<ellipse cx="50" cy="80" rx="16" ry="11.5" fill="#ff7fb6" stroke="#f06aa5" stroke-width="1.5"/><g fill="#c2457a"><ellipse cx="44" cy="80" rx="2.6" ry="4"/><ellipse cx="56" cy="80" rx="2.6" ry="4"/></g>'
+          + line('M45 96 Q50 99 55 96', 1.8) + knot('#ff9cc6', 108), start: 113 }) },
+    { id: 'panda', name: 'Panda', group: 'Tier', info: 'schwarz-weiß mit Augenflecken', colors: 'feste Farben', fixed: '#33283f',
+      draw: () => {
+        const K = '#33283f';
+        return { body: shade('<circle cx="17" cy="34" r="13"/><circle cx="83" cy="34" r="13"/>', K) + '<g fill="#fff" opacity=".18"><circle cx="15" cy="31" r="5"/><circle cx="81" cy="31" r="5"/></g>'
+          + shade('<ellipse cx="50" cy="68" rx="42" ry="38"/>', '#fdfbff', { dark: 0.07, outline: '#d6cde3' })
+          + `<g fill="${K}"><ellipse cx="34" cy="64" rx="10" ry="13.5" transform="rotate(30 34 64)"/><ellipse cx="66" cy="64" rx="10" ry="13.5" transform="rotate(-30 66 64)"/></g>`
+          + `<g fill="#fff"><circle cx="35" cy="62" r="4.3"/><circle cx="65" cy="62" r="4.3"/></g><g fill="${K}"><circle cx="35.6" cy="62.6" r="2.6"/><circle cx="64.4" cy="62.6" r="2.6"/></g>`
+          + blush(23, 77, 79, 6, 3.5, 0.55) + `<ellipse cx="50" cy="79" rx="5.5" ry="3.8" fill="${K}"/>`
+          + line('M50 82.5 Q46 88 42 85.5 M50 82.5 Q54 88 58 85.5', 2, K) + knot('#fdfbff', 106), start: 111 };
+      } },
+    { id: 'lion', name: 'Löwe', group: 'Tier', info: 'Mähne in Ballonfarbe', colors: 'Mähne farbig',
+      draw: (c) => {
+        const mane = Array.from({ length: 12 }, (_, k) => { const a = k * Math.PI / 6; return `<circle cx="${(50 + 35 * Math.cos(a)).toFixed(1)}" cy="${(64 + 35 * Math.sin(a)).toFixed(1)}" r="13"/>`; }).join('') + '<circle cx="50" cy="64" r="36"/>';
+        return { body: shade(mane, c) + hl(20, 36, 5, 9, -40)
+          + '<g fill="#ffe2a6" stroke="#f2b955" stroke-width="1.5"><circle cx="31" cy="41" r="8"/><circle cx="69" cy="41" r="8"/></g><g fill="#f2b955"><circle cx="31" cy="41" r="4"/><circle cx="69" cy="41" r="4"/></g>'
+          + shade('<circle cx="50" cy="66" r="30"/>', '#ffe2a6', { dark: 0.08, outline: '#f2b955' })
+          + '<g fill="#fff" opacity=".65"><ellipse cx="44" cy="78" rx="8" ry="6"/><ellipse cx="56" cy="78" rx="8" ry="6"/></g>'
+          + eyes(39, 61, 60, 4) + blush(31, 69, 72, 5, 3)
+          + '<path d="M44 70 Q50 67 56 70 Q54 76 50 77 Q46 76 44 70 Z" fill="#8a4b2a"/>' + line('M50 77 Q47 84 42 81 M50 77 Q53 84 58 81', 2)
+          + knot(c, 112), start: 117 };
+      } },
+    { id: 'balloon-dog', name: 'Ballonhund', group: 'Tier', info: 'gedrehter Modellierballon', colors: 'alle Farben',
+      draw: (c) => ({ body: seg(33, 70, 37, 101, 12, c, true) + seg(67, 70, 73, 100, 12, c, true) + seg(33, 66, 15, 46, 11, c)
+          + seg(33, 68, 67, 68, 18, c) + seg(33, 70, 25, 100, 13, c) + seg(67, 70, 61, 101, 13, c)
+          + seg(73, 38, 67, 15, 11, c, true) + seg(67, 66, 73, 40, 14, c) + seg(73, 38, 60, 21, 12, c) + seg(73, 38, 91, 41, 14, c)
+          + `<circle cx="79" cy="35" r="2.3" fill="${INK}"/><circle cx="95.5" cy="41.5" r="3" fill="${INK}"/>`, start: 77 }) },
+    { id: 'fish', name: 'Fisch', group: 'Tier', info: 'mit Flossen und Streifen', colors: 'alle Farben',
+      draw: (c) => ({ body: shade('<path d="M26 62 C16 50 8 42 4 36 C9 52 9 72 4 88 C8 82 16 74 26 62 Z"/><path d="M40 40 C46 24 62 22 72 38 Z"/><ellipse cx="52" cy="62" rx="36" ry="27"/>', c)
+          + line('M46 40 Q56 62 46 84 M58 37 Q68 62 58 87', 4, '#fff', 0.3) + hl(32, 52, 4.5, 8, -40)
+          + `<circle cx="72" cy="55" r="7.5" fill="#fff"/><circle cx="73.5" cy="56" r="4" fill="${INK}"/><circle cx="75" cy="54.3" r="1.4" fill="#fff"/>`
+          + blush(70, 70, 69, 5, 3) + line('M86 66 Q82 70 78 68', 2) + knot(c, 89), start: 94 }) },
+    { id: 'star', name: 'Stern', group: 'Form', info: 'Folienstern mit Kanten', colors: 'alle Farben',
+      draw: (c) => {
+        const pts = Array.from({ length: 10 }, (_, k) => { const a = (-90 + k * 36) * Math.PI / 180, r = k % 2 ? 23 : 48; return [50 + r * Math.cos(a), 62 + r * Math.sin(a)]; });
+        const creases = pts.filter((_, k) => k % 2 === 0).map(([x, y]) => `M50 62 L${(50 + (x - 50) * 0.78).toFixed(1)} ${(62 + (y - 62) * 0.78).toFixed(1)}`).join(' ');
+        return { body: shade(`<path d="${roundPoly(pts, [0.2, 0.12])}"/>`, c) + line(creases, 1.5, '#fff', 0.22) + hl(46, 34, 3, 7, -15) + valve(c, 86), start: 91 };
+      } },
+  ];
+
+  const state = { favs: [], color: 'mix' };
+  try { Object.assign(state, JSON.parse(localStorage.getItem('rt-balloon-mockup') || '{}')); } catch (e) {}
+  const save = () => { try { localStorage.setItem('rt-balloon-mockup', JSON.stringify(state)); } catch (e) {} };
+
+  const colorFor = (i) => (state.color === 'mix' ? COLORS[i % COLORS.length].c : COLORS[state.color].c);
+  // Same wavy string as the app, squeezed to end at the bottom of the given viewBox
+  const stringPath = (s, end) => { const y = (f) => (s + (end - s) * f).toFixed(1); return `<path class="str" d="M50 ${s} C40 ${y(0.18)} 62 ${y(0.34)} 48 ${y(0.53)} S56 ${y(0.84)} 50 ${end}" fill="none" stroke-width="1.6" opacity=".7"/>`; };
+  function art(type, c, viewBox) {
+    const { body, start } = type.draw(c);
+    const [, y0, , h] = viewBox.split(' ').map(Number);
+    return `<svg class="art" viewBox="${viewBox}" aria-hidden="true">${stringPath(start, y0 + h - 2)}<g class="body">${body}</g></svg>`;
+  }
+
+  // Preview: the favorites, or all 15 when nothing is picked yet
+  const rand = (a, b) => a + Math.random() * (b - a);
+  function stageBalloon(type, c) {
+    return `<div class="sb" data-id="${type.id}" data-c="${c}" style="--dy:${rand(0, 36).toFixed(0)}px">`
+      + `<div class="bob" style="--bob:${rand(2.8, 3.8).toFixed(2)}s;--sway:${(-rand(0, 3)).toFixed(2)}s">${art(type, c, '-8 -12 116 236')}</div></div>`;
+  }
+  function renderStage() {
+    const shown = state.favs.length ? TYPES.filter((t) => state.favs.includes(t.id)) : TYPES;
+    document.getElementById('sky').innerHTML = shown.map((t, i) => stageBalloon(t, colorFor(i))).join('');
+    document.getElementById('preview-label').innerHTML = state.favs.length
+      ? `Vorschau: <b>${state.favs.length} ${state.favs.length === 1 ? 'Favorit' : 'Favoriten'}</b> · zum Platzen antippen`
+      : 'Vorschau: <b>alle 15</b> · zum Platzen antippen';
+  }
+
+  function renderGrid() {
+    document.getElementById('grid').innerHTML = TYPES.map((t, i) => {
+      const on = state.favs.includes(t.id);
+      return `<button type="button" class="opt" data-id="${t.id}" aria-pressed="${on}" aria-label="${i + 1} ${t.name}, als Favorit ${on ? 'markiert' : 'markieren'}">`
+        + '<svg class="fav" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20 C6 16 3 12.5 3 9 C3 6.2 5 4.5 7.4 4.5 C9.4 4.5 11.2 5.8 12 7.6 C12.8 5.8 14.6 4.5 16.6 4.5 C19 4.5 21 6.2 21 9 C21 12.5 18 16 12 20 Z"/></svg>'
+        + art(t, colorFor(i), '-8 -12 116 160')
+        + `<span class="opt-label"><span class="opt-name"><span class="no">${i + 1}</span>${t.name}</span><span class="opt-info">${t.info}</span>`
+        + `<span class="chips"><span class="chip">${t.group}</span><span class="chip">${t.colors}</span></span></span></button>`;
+    }).join('');
+  }
+
+  function renderPicked() {
+    const picked = TYPES.map((t, i) => ({ ...t, no: i + 1 })).filter((t) => state.favs.includes(t.id));
+    document.getElementById('picked-text').innerHTML = picked.length
+      ? `<b>Deine Auswahl:</b> ${picked.map((t) => `${t.no} ${t.name}`).join(', ')}`
+      : '<b>Noch keine Auswahl.</b> Tippe die Karten an, die in die App sollen.';
+    document.getElementById('copy').disabled = !picked.length;
+    document.getElementById('clear').disabled = !picked.length;
+  }
+
+  function renderSwatches() {
+    document.getElementById('swatches').innerHTML = `<button type="button" data-color="mix" aria-pressed="${state.color === 'mix'}">Gemischt</button>`
+      + COLORS.map((x, i) => `<button type="button" data-color="${i}" style="--sw:${x.c}" aria-label="${x.n}" aria-pressed="${state.color === i}"></button>`).join('');
+  }
+
+  function render() { uid = 0; renderSwatches(); renderStage(); renderGrid(); renderPicked(); save(); }
+
+  // Pop a preview balloon: burst, shards, then a new one floats up in the same spot
+  function pop(sb) {
+    if (sb.classList.contains('is-popping')) return;
+    const type = TYPES.find((t) => t.id === sb.dataset.id);
+    const shardColor = type.fixed || sb.dataset.c;
+    sb.classList.add('is-popping');
+    sb.querySelector('.bob').insertAdjacentHTML('beforeend', Array.from({ length: 8 }, (_, s) => `<span class="shard" style="--a:${s * 45 + rand(-10, 10)}deg;--c:${shardColor}"></span>`).join(''));
+    setTimeout(() => {
+      const pool = COLORS.map((x) => x.c).filter((x) => x !== sb.dataset.c);
+      const c = state.color === 'mix' ? pool[Math.floor(Math.random() * pool.length)] : sb.dataset.c;
+      const tmp = document.createElement('div');
+      tmp.innerHTML = stageBalloon(type, c);
+      const fresh = tmp.firstElementChild;
+      fresh.classList.add('is-fresh');
+      sb.replaceWith(fresh);
+    }, 600);
+  }
+
+  document.getElementById('sky').addEventListener('pointerdown', (e) => {
+    const body = e.target.closest('.body');
+    if (body) pop(body.closest('.sb'));
+  });
+  document.addEventListener('click', (e) => {
+    const opt = e.target.closest('.opt');
+    if (opt) {
+      const id = opt.dataset.id;
+      state.favs = state.favs.includes(id) ? state.favs.filter((x) => x !== id) : TYPES.map((t) => t.id).filter((x) => x === id || state.favs.includes(x));
+      render();
+      document.querySelector(`.opt[data-id="${id}"]`)?.focus();
+      return;
+    }
+    const sw = e.target.closest('.swatches button');
+    if (sw) {
+      state.color = sw.dataset.color === 'mix' ? 'mix' : Number(sw.dataset.color);
+      render();
+      document.querySelector(`.swatches button[data-color="${sw.dataset.color}"]`)?.focus();
+    }
+  });
+  document.getElementById('clear').addEventListener('click', () => { state.favs = []; render(); });
+  document.getElementById('copy').addEventListener('click', (e) => {
+    const text = 'Ballons: ' + TYPES.map((t, i) => (state.favs.includes(t.id) ? `${i + 1} ${t.name}` : null)).filter(Boolean).join(', ');
+    const btn = e.currentTarget;
+    const done = () => { btn.textContent = 'Kopiert'; setTimeout(() => { btn.textContent = 'Auswahl kopieren'; }, 1600); };
+    navigator.clipboard?.writeText(text).then(done, () => {
+      const range = document.createRange();
+      range.selectNodeContents(document.getElementById('picked-text'));
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+    });
+  });
+  render();
+</script>
