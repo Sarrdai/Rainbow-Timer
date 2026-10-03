@@ -35,7 +35,7 @@ function stringPath(top: number) {
 }
 
 /** Flat two-tone shading like the classic balloon: a darker crescent at the lower right, the lit part offset up-left. */
-function Shade({ fill, dark = 0.14, outline, children }: { fill: string; dark?: number; outline?: string; children: ReactNode }) {
+export function Shade({ fill, dark = 0.14, outline, offset = [-5, -4], children }: { fill: string; dark?: number; outline?: string; offset?: readonly [number, number]; children: ReactNode }) {
     const id = `balloon-${useId().replace(/[^\w-]/g, '')}`;
     return (
         <>
@@ -44,7 +44,7 @@ function Shade({ fill, dark = 0.14, outline, children }: { fill: string; dark?: 
             <g fill={fill}>{children}</g>
             <g fill="#000" opacity={dark}>{children}</g>
             <g clipPath={`url(#${id})`}>
-                <g fill={fill} transform="translate(-5 -4)">{children}</g>
+                <g fill={fill} transform={`translate(${offset[0]} ${offset[1]})`}>{children}</g>
             </g>
         </>
     );
@@ -53,7 +53,7 @@ function Shade({ fill, dark = 0.14, outline, children }: { fill: string; dark?: 
 const line = (d: string, width = 2.2, color = INK, opacity = 1) => (
     <path d={d} fill="none" stroke={color} strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" opacity={opacity} />
 );
-const shine = (x: number, y: number, rx: number, ry: number, rot = -30, opacity = 0.45) => (
+export const shine = (x: number, y: number, rx: number, ry: number, rot = -30, opacity = 0.45) => (
     <ellipse cx={x} cy={y} rx={rx} ry={ry} transform={`rotate(${rot} ${x} ${y})`} fill="#fff" opacity={opacity} />
 );
 const eye = (x: number, y: number, rx = 4.5, ry = rx * 1.3) => (
