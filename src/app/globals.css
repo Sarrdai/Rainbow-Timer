@@ -259,6 +259,10 @@
 @keyframes party-bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-10px) rotate(3deg); } }
 .party-balloon svg { display: block; width: 100%; height: auto; overflow: visible; }
 .party-balloon-body, .party-balloon-string { transform-box: fill-box; }
+/* Balloons can be popped by a click; the replacement floats up more gently */
+.party-balloon-body { pointer-events: auto; cursor: pointer; }
+.is-hidden .party-balloon-body, .is-exiting .party-balloon-body, .is-popping .party-balloon-body { pointer-events: none; }
+.party-balloon.is-fresh { animation: party-rise 1.8s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
 /* Exit: balloons pop, everything that hangs falls to the floor and fades */
 .is-exiting .party-curl,
@@ -272,9 +276,11 @@
   80% { opacity: 1; }
   100% { transform: translateY(var(--fall-dy)) rotate(var(--fall-rot)); opacity: 0; }
 }
-.is-exiting .party-balloon-body { transform-origin: 50% 50%; animation: party-burst 0.14s ease-out var(--pop) forwards; }
+.is-exiting .party-balloon-body,
+.is-popping .party-balloon-body { transform-origin: 50% 50%; animation: party-burst 0.14s ease-out var(--pop) forwards; }
 @keyframes party-burst { to { transform: scale(1.3); opacity: 0; } }
-.is-exiting .party-balloon-string {
+.is-exiting .party-balloon-string,
+.is-popping .party-balloon-string {
   --fall-dy: 70vh;
   --fall-rot: 40deg;
   transform-origin: 50% 0;
@@ -302,6 +308,8 @@
     animation: none !important;
     stroke-dashoffset: 0;
   }
+  .party-balloon.is-fresh { animation: none !important; }
+  .is-popping .party-balloon-body, .is-popping .party-balloon-string { animation: party-fade-out 0.2s forwards !important; }
   .is-exiting .party-curl, .is-exiting .party-garland, .is-exiting .party-balloon {
     animation: party-fade-out 0.3s forwards !important;
   }

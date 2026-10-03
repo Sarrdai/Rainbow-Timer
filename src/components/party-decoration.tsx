@@ -9,6 +9,8 @@ const BALLOON_COLORS = ['#e81416', '#ffa500', '#79c314', '#487de7', '#70369d', '
 const EXIT_MS = 1800;
 /** Entrance delays are shifted by this when a scene is rebuilt after a resize, so it appears settled */
 const SETTLED_OFFSET_S = -5;
+/** Time from a click-pop until the replacement balloon starts floating in */
+const RESPAWN_MS = 600;
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
@@ -16,7 +18,7 @@ interface Fall { fallDelay: number; fallDur: number; fallRot: number }
 interface Curl extends Fall { d: string; color: string; width: number; delay: number; sway: number }
 interface Flag { d: string; shade: string; color: string; delay: number; sway: number }
 interface Garland extends Fall { twists: { d: string; color: string }[]; flags: Flag[]; delay: number }
-interface Balloon { x: number; y: number; w: number; color: string; delay: number; tilt: number; sway: number; bob: number; pop: number; shards: number[] }
+interface Balloon { x: number; y: number; w: number; color: string; delay: number; tilt: number; sway: number; bob: number; pop: number; shards: number[]; gen: number; popping?: boolean; fresh?: boolean }
 
 interface Scene {
     id: number;
@@ -102,6 +104,25 @@ function buildGarlands(W: number, base: number, avoid: DOMRect | null): Garland[
     return garlands;
 }
 
+const makeShards = () => Array.from({ length: 8 }, (_, s) => s * 45 + rand(-10, 10));
+
+/** Replacement for a balloon popped by a click: same spot, new color, floats in from below. */
+function respawnBalloon(b: Balloon): Balloon {
+    const colors = BALLOON_COLORS.filter((c) => c !== b.color);
+    return {
+        ...b,
+        w: b.w * rand(0.92, 1.08),
+        color: colors[Math.floor(Math.random() * colors.length)],
+        delay: 0,
+        tilt: rand(-20, 20),
+        sway: -rand(0, 3),
+        shards: makeShards(),
+        gen: b.gen + 1,
+        popping: false,
+        fresh: true,
+    };
+}
+
 function buildBalloons(W: number, H: number, base: number): Balloon[] {
     const small = W < 600;
     const w = small ? 54 : 78;
@@ -120,7 +141,8 @@ function buildBalloons(W: number, H: number, base: number): Balloon[] {
         sway: -rand(0, 3),
         bob: rand(2.8, 3.8),
         pop: 0.06 + popOrder[i] * rand(0.07, 0.11),
-        shards: Array.from({ length: 8 }, (_, s) => s * 45 + rand(-10, 10)),
+        shards: makeShards(),
+        gen: 0,
     }));
 }
 
@@ -134,7 +156,7 @@ function buildScene(id: number, settled: boolean, avoid: DOMRect | null): Scene 
 const vars = (v: Record<string, string | number>) => v as CSSProperties;
 const fallVars = (f: Fall, H: number) => vars({ '--fall-delay': `${f.fallDelay}s`, '--fall-dur': `${f.fallDur}s`, '--fall-rot': `${f.fallRot}deg`, '--fall-dy': `${H + 60}px` });
 
-function SceneView({ scene }: { scene: Scene }) {
+function SceneView({ scene, onPop }: { scene: Scene; onPop: (index: number) => void }) {
     const { width: W, height: H } = scene;
     const exiting = scene.exitedAt !== null;
     return (
@@ -166,21 +188,21 @@ function SceneView({ scene }: { scene: Scene }) {
             <div className={cn('party-deco fixed inset-0 z-[50]', exiting && 'is-exiting')}>
                 {scene.balloons.map((b, i) => (
                     <div
-                        key={i}
-                        className="party-balloon"
-                        style={vars({ '--x': `${b.x}px`, '--y': `${b.y}px`, '--w': `${b.w}px`, '--delay': `${b.delay}s`, '--tilt': `${b.tilt}deg`, '--pop': `${b.pop}s` })}
+                        key={`${i}-${b.gen}`}
+                        className={cn('party-balloon', b.popping && 'is-popping', b.fresh && 'is-fresh')}
+                        style={vars({ '--x': `${b.x}px`, '--y': `${b.y}px`, '--w': `${b.w}px`, '--delay': `${b.delay}s`, '--tilt': `${b.tilt}deg`, '--pop': b.popping ? '0s' : `${b.pop}s` })}
                     >
                         <div className="party-balloon-bob" style={vars({ '--sway-delay': `${b.sway}s`, '--bob': `${b.bob}s` })}>
                             <svg viewBox="0 0 100 300">
                                 <path className="party-balloon-string" d="M50 118 C 40 150, 62 180, 48 215 S 56 270, 50 300" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth={1.6} opacity={0.7} />
-                                <g className="party-balloon-body">
+                                <g className="party-balloon-body" onPointerDown={() => !exiting && !b.popping && onPop(i)}>
                                     <path d="M50 4 C82 4 96 30 96 58 C96 90 70 110 53 113 L47 113 C30 110 4 90 4 58 C4 30 18 4 50 4 Z" fill={b.color} />
                                     <path d="M50 4 C82 4 96 30 96 58 C96 90 70 110 53 113 C78 96 88 70 84 44 C80 22 68 8 50 4 Z" fill="#000" opacity={0.14} />
                                     <ellipse cx="31" cy="34" rx="8" ry="16" transform="rotate(-24 31 34)" fill="#fff" opacity={0.45} />
                                     <path d="M44 120 L50 111 L56 120 Z" fill={b.color} />
                                 </g>
                             </svg>
-                            {exiting && b.shards.map((a, s) => (
+                            {(exiting || b.popping) && b.shards.map((a, s) => (
                                 <span key={s} className="party-shard" style={vars({ '--a': `${a}deg`, '--c': b.color })} />
                             ))}
                         </div>
@@ -206,6 +228,27 @@ interface PartyDecorationProps {
 export function PartyDecoration({ active, visible, avoidRef }: PartyDecorationProps) {
     const [scenes, setScenes] = useState<Scene[]>([]);
     const nextId = useRef(1);
+    const respawnTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
+
+    useEffect(() => {
+        const timers = respawnTimers.current;
+        return () => timers.forEach(clearTimeout);
+    }, []);
+
+    const updateBalloon = (sceneId: number, index: number, update: (b: Balloon) => Balloon) =>
+        setScenes((s) => s.map((sc) => (sc.id === sceneId && sc.exitedAt === null
+            ? { ...sc, balloons: sc.balloons.map((b, i) => (i === index ? update(b) : b)) }
+            : sc)));
+
+    // A clicked balloon bursts, then a new one floats into its place
+    const popBalloon = (sceneId: number, index: number) => {
+        updateBalloon(sceneId, index, (b) => ({ ...b, popping: true }));
+        const t = setTimeout(() => {
+            respawnTimers.current.delete(t);
+            updateBalloon(sceneId, index, (b) => (b.popping ? respawnBalloon(b) : b));
+        }, RESPAWN_MS);
+        respawnTimers.current.add(t);
+    };
 
     useEffect(() => {
         if (active) {
@@ -247,8 +290,8 @@ export function PartyDecoration({ active, visible, avoidRef }: PartyDecorationPr
 
     if (!scenes.length) return null;
     return (
-        <div aria-hidden="true" className={cn('transition-opacity duration-200', !visible && 'opacity-0')}>
-            {scenes.map((scene) => <SceneView key={scene.id} scene={scene} />)}
+        <div aria-hidden="true" className={cn('transition-opacity duration-200', !visible && 'opacity-0 is-hidden')}>
+            {scenes.map((scene) => <SceneView key={scene.id} scene={scene} onPop={(i) => popBalloon(scene.id, i)} />)}
         </div>
     );
 }
