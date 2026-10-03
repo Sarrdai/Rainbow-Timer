@@ -1,10 +1,11 @@
 import type {Metadata, Viewport} from 'next';
-import { Inter } from 'next/font/google';
+import { Fredoka, Inter } from 'next/font/google';
 import './globals.css';
 import { THEME_COLORS, themeInitScript } from '@/lib/theme';
 
 // Self-hosted at build time: no runtime request to Google, works offline in the native app
 const inter = Inter({ subsets: ['latin'], weight: ['400', '700'], variable: '--font-inter', display: 'swap' });
+const fredoka = Fredoka({ subsets: ['latin'], weight: ['700'], variable: '--font-fredoka', display: 'swap' });
 
 export const metadata: Metadata = {
   title: 'Rainbow Timer',
@@ -35,7 +36,7 @@ export default function RootLayout({
 }>) {
   return (
     // data-theme is set by the init script before hydration
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${fredoka.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
