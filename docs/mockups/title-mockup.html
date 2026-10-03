@@ -1,0 +1,266 @@
+<title>Rainbow Timer Title Mockup</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&family=Bubblegum+Sans&family=Chewy&family=Fredoka:wght@500;600;700&family=Grandstander:wght@900&family=Inter:wght@900&family=Lilita+One&family=Nunito:wght@500;700;800&family=Sniglet:wght@800&family=Titan+One&display=swap">
+<style>
+  /* Layout: one large live preview on top, then three pick-one rows (Rainbow colors, Timer color, font). */
+  :root {
+    --bg: hsl(300 65% 92%);
+    --surface: hsl(0 0% 100% / 0.72);
+    --surface-active: #ffffff;
+    --ink: hsl(271 47% 25%);
+    --ink-soft: hsl(268 38% 47%);
+    --line: hsl(300 30% 82%);
+    --focus: #4b369d;
+    --title-edge: hsl(271 60% 22% / 0.5);
+    /* App rainbow (globals.css --ring-*) */
+    --c-red: #e81416;
+    --c-orange: #ffa500;
+    --c-yellow: #faeb36;
+    --c-green: #79c314;
+    --c-blue: #487de7;
+    --c-indigo: #4b369d;
+    --c-violet: #70369d;
+    /* Timer color candidates */
+    --t-current: hsl(271 47% 25%);
+    --t-violet: #70369d;
+    --t-blue: #487de7;
+    --t-magenta: #d63384;
+    --t-teal: #0f9d9a;
+    --font-ui: "Nunito", "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: hsl(249 40% 12%);
+      --surface: hsl(249 35% 17%);
+      --surface-active: hsl(249 32% 24%);
+      --ink: hsl(253 100% 94%);
+      --ink-soft: hsl(255 63% 79%);
+      --line: hsl(249 25% 28%);
+      --focus: #c9b8ff;
+      --title-edge: hsl(253 100% 94% / 0.28);
+      --c-indigo: #7b62d6;
+      --c-violet: #a35bd6;
+      --t-current: hsl(253 100% 94%);
+      --t-violet: #c084ee;
+      --t-blue: #6f9cf0;
+      --t-magenta: #ff6fb5;
+      --t-teal: #3fd1c6;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: hsl(249 40% 12%);
+    --surface: hsl(249 35% 17%);
+    --surface-active: hsl(249 32% 24%);
+    --ink: hsl(253 100% 94%);
+    --ink-soft: hsl(255 63% 79%);
+    --line: hsl(249 25% 28%);
+    --focus: #c9b8ff;
+    --title-edge: hsl(253 100% 94% / 0.28);
+    --c-indigo: #7b62d6;
+    --c-violet: #a35bd6;
+    --t-current: hsl(253 100% 94%);
+    --t-violet: #c084ee;
+    --t-blue: #6f9cf0;
+    --t-magenta: #ff6fb5;
+    --t-teal: #3fd1c6;
+    color-scheme: dark;
+  }
+
+  body { background: var(--bg); color: var(--ink); font: 500 15px/1.5 var(--font-ui); }
+  .page { max-width: 1080px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 64px; display: grid; gap: 40px; }
+
+  header { display: grid; gap: 4px; }
+  header p { margin: 0; color: var(--ink-soft); max-width: 62ch; }
+  h1 { margin: 0; font-size: 1.05rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+  h2 { margin: 0; font-size: 1.25rem; font-weight: 800; text-wrap: balance; }
+  section { display: grid; gap: 14px; }
+  section > p { margin: 0; color: var(--ink-soft); max-width: 65ch; }
+
+  /* Live preview */
+  .stage { display: grid; justify-items: center; gap: 18px; padding-block: 36px 24px; padding-inline: 16px; border-radius: 28px; background: var(--surface); border: 1px solid var(--line); }
+  .stage .title { font-size: clamp(44px, 11vw, 92px); }
+  .stage-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; justify-content: center; align-items: center; color: var(--ink-soft); font-size: 0.9rem; }
+  .stage-meta b { color: var(--ink); font-weight: 800; }
+  .toggle { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); }
+  .toggle button { all: unset; cursor: pointer; padding: 6px 16px; border-radius: 999px; font-weight: 800; font-size: 0.9rem; color: var(--ink-soft); }
+  .toggle button[aria-pressed="true"] { background: var(--surface-active); color: var(--ink); box-shadow: 0 1px 4px hsl(271 47% 25% / 0.15); }
+  .toggle button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  /* Option cards */
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
+  #grid-r { grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); }
+  .opt { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-rows: 1fr auto; gap: 12px; padding: 20px 14px 12px; border-radius: 18px; background: var(--surface); border: 2px solid transparent; transition: border-color .15s, transform .15s; min-width: 0; }
+  .opt:hover { transform: translateY(-2px); }
+  .opt:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+  .opt[aria-pressed="true"] { border-color: var(--focus); background: var(--surface-active); }
+  .opt .title { font-size: 40px; justify-self: center; align-self: center; }
+  .opt-label { display: grid; justify-items: center; text-align: center; gap: 0; font-size: 0.85rem; line-height: 1.35; }
+  .opt-label b { font-weight: 800; }
+  .opt-label span { color: var(--ink-soft); }
+  .tag { font-size: 0.7rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+
+  /* ---------- Title ---------- */
+  .title { display: inline-flex; flex-direction: column; align-items: center; line-height: 1; font-family: var(--tf); font-weight: var(--tw, 400); letter-spacing: var(--ls, 0); }
+  .rw { display: flex; padding-bottom: 0.06em; filter: drop-shadow(0 0 0.5px var(--title-edge)) drop-shadow(0 0.045em 0 var(--title-edge)); }
+  .rw span { display: inline-block; }
+  .tw { display: flex; font-size: 0.78em; margin-top: 0.02em; }
+  .tw span { display: inline-block; }
+
+  /* Rainbow A: current repeating stripes */
+  [data-r="stripes"] .rw { color: transparent; -webkit-background-clip: text; background-clip: text;
+    --s: 0.19em;
+    background-image: repeating-linear-gradient(135deg,
+      var(--c-red) 0 var(--s), var(--c-orange) var(--s) calc(2*var(--s)), var(--c-yellow) calc(2*var(--s)) calc(3*var(--s)),
+      var(--c-green) calc(3*var(--s)) calc(4*var(--s)), var(--c-blue) calc(4*var(--s)) calc(5*var(--s)),
+      var(--c-indigo) calc(5*var(--s)) calc(6*var(--s)), var(--c-violet) calc(6*var(--s)) calc(7*var(--s))); }
+  /* Rainbow B: one color per letter (7 letters, 7 colors) */
+  [data-r="letters"] .rw span:nth-child(1) { color: var(--c-red); }
+  [data-r="letters"] .rw span:nth-child(2) { color: var(--c-orange); }
+  [data-r="letters"] .rw span:nth-child(3) { color: var(--c-yellow); }
+  [data-r="letters"] .rw span:nth-child(4) { color: var(--c-green); }
+  [data-r="letters"] .rw span:nth-child(5) { color: var(--c-blue); }
+  [data-r="letters"] .rw span:nth-child(6) { color: var(--c-indigo); }
+  [data-r="letters"] .rw span:nth-child(7) { color: var(--c-violet); }
+  /* Rainbow C: seven diagonal bands stretched over the whole word, each color once */
+  [data-r="bands"] .rw { color: transparent; -webkit-background-clip: text; background-clip: text;
+    background-image: linear-gradient(115deg,
+      var(--c-red) 0 14.28%, var(--c-orange) 14.28% 28.57%, var(--c-yellow) 28.57% 42.85%, var(--c-green) 42.85% 57.14%,
+      var(--c-blue) 57.14% 71.42%, var(--c-indigo) 71.42% 85.71%, var(--c-violet) 85.71% 100%); }
+  /* Rainbow D: soft blend, each color once */
+  [data-r="soft"] .rw { color: transparent; -webkit-background-clip: text; background-clip: text;
+    background-image: linear-gradient(90deg, var(--c-red), var(--c-orange), var(--c-yellow), var(--c-green), var(--c-blue), var(--c-indigo), var(--c-violet)); }
+
+  /* Timer colors */
+  [data-t="current"] .tw { color: var(--t-current); }
+  [data-t="violet"] .tw { color: var(--t-violet); }
+  [data-t="blue"] .tw { color: var(--t-blue); }
+  [data-t="magenta"] .tw { color: var(--t-magenta); }
+  [data-t="teal"] .tw { color: var(--t-teal); }
+  [data-t="dusk"] .tw { color: transparent; -webkit-background-clip: text; background-clip: text; background-image: linear-gradient(90deg, var(--c-blue), var(--c-indigo) 50%, var(--t-magenta)); }
+  [data-t] .tw { filter: drop-shadow(0 0.04em 0 var(--title-edge)); }
+
+  /* Party word, as in the app: rainbow letters with yellow skipped */
+  .tw.party { color: inherit !important; background: none !important; }
+  .tw.party span:nth-child(1) { color: var(--c-red); }
+  .tw.party span:nth-child(2) { color: var(--c-orange); }
+  .tw.party span:nth-child(3) { color: var(--c-green); }
+  .tw.party span:nth-child(4) { color: var(--c-blue); }
+  .tw.party span:nth-child(5) { color: var(--c-violet); }
+  .stage .tw.party span { animation: wave 1.3s ease-in-out infinite; animation-delay: calc(var(--d) * -0.11s); }
+  @keyframes wave { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.09em) rotate(-3deg); } }
+  @media (prefers-reduced-motion: reduce) { .stage .tw.party span { animation: none; } .opt { transition: none; } }
+
+  .note { font-size: 0.85rem; color: var(--ink-soft); margin: 0; }
+</style>
+
+<main class="page">
+  <header>
+    <h1>Rainbow Timer · Titel-Mockup</h1>
+    <p>Klicke in den drei Reihen unten auf eine Variante. Die große Vorschau übernimmt die Auswahl, und alle Karten zeigen sich mit der aktuell gewählten Kombination.</p>
+  </header>
+
+  <div class="stage">
+    <div id="stage-title"></div>
+    <div class="stage-meta">
+      <div class="toggle" role="group" aria-label="Modus">
+        <button type="button" id="mode-timer" aria-pressed="true">Timer</button>
+        <button type="button" id="mode-party" aria-pressed="false">Party</button>
+      </div>
+      <span id="summary"></span>
+    </div>
+  </div>
+
+  <section>
+    <h2>1 · Farben für „Rainbow“</h2>
+    <p>Aktuell wiederholt sich das Streifenmuster im Wort (A). B bis D verwenden jede der sieben Regenbogenfarben genau einmal; „Rainbow“ hat zufällig genau sieben Buchstaben.</p>
+    <div class="grid" id="grid-r"></div>
+  </section>
+
+  <section>
+    <h2>2 · Farbe für „Timer“</h2>
+    <p>Alle Farben stammen aus der App-Palette oder ergänzen das Rosa-Lila des Hintergrunds. Im Party-Modus bleibt „Party“ bunt wie bisher.</p>
+    <div class="grid" id="grid-t"></div>
+  </section>
+
+  <section>
+    <h2>3 · Schriftarten</h2>
+    <p>Runde, verspielte Google Fonts, die sich direkt per <code>next/font/google</code> einbinden lassen. Die erste Karte ist der aktuelle Stand zum Vergleich.</p>
+    <div class="grid" id="grid-f"></div>
+    <p class="note">Tipp: Im Party-Modus siehst du, wie die Schrift beim Wechsel „Timer“ ⇄ „Party“ wirkt.</p>
+  </section>
+</main>
+
+<script>
+  const RAINBOWS = [
+    { id: 'stripes', name: 'A · Streifen', info: 'aktuell, Farben wiederholen sich' },
+    { id: 'letters', name: 'B · Ein Buchstabe, eine Farbe', info: 'jede Farbe 1×' },
+    { id: 'bands', name: 'C · Breite Schrägbänder', info: 'jede Farbe 1×' },
+    { id: 'soft', name: 'D · Weicher Verlauf', info: 'jede Farbe 1×, fließend' },
+  ];
+  const TIMERS = [
+    { id: 'current', name: 'Aktuell', info: 'Dunkellila' },
+    { id: 'violet', name: 'Violett', info: 'Regenbogen-Violett' },
+    { id: 'blue', name: 'Himmelblau', info: 'Regenbogen-Blau' },
+    { id: 'magenta', name: 'Pink', info: 'passt zum Hintergrund' },
+    { id: 'teal', name: 'Türkis', info: 'frischer Kontrast' },
+    { id: 'dusk', name: 'Verlauf', info: 'Blau → Indigo → Pink' },
+  ];
+  const FONTS = [
+    { id: 'inter', name: 'Inter Black', info: 'aktuell', f: '"Inter", sans-serif', w: 900, ls: '-0.02em' },
+    { id: 'fredoka', name: 'Fredoka', info: 'rund, freundlich', f: '"Fredoka", sans-serif', w: 700 },
+    { id: 'baloo', name: 'Baloo 2', info: 'weich, kräftig', f: '"Baloo 2", sans-serif', w: 800 },
+    { id: 'chewy', name: 'Chewy', info: 'Comic, hüpfend', f: '"Chewy", cursive', w: 400, ls: '0.02em' },
+    { id: 'lilita', name: 'Lilita One', info: 'fett, Spielzeug-Look', f: '"Lilita One", sans-serif', w: 400, ls: '0.01em' },
+    { id: 'titan', name: 'Titan One', info: 'sehr fett, Bubble', f: '"Titan One", sans-serif', w: 400 },
+    { id: 'sniglet', name: 'Sniglet', info: 'rund, verspielt', f: '"Sniglet", sans-serif', w: 800 },
+    { id: 'grandstander', name: 'Grandstander', info: 'handgemacht, Kinderbuch', f: '"Grandstander", cursive', w: 900 },
+    { id: 'bubblegum', name: 'Bubblegum Sans', info: 'leicht, Comic', f: '"Bubblegum Sans", cursive', w: 400, ls: '0.02em' },
+  ];
+
+  const state = { r: 'letters', t: 'violet', f: 'fredoka', party: false };
+  try { Object.assign(state, JSON.parse(localStorage.getItem('rt-title-mockup') || '{}')); } catch (e) {}
+
+  const letters = (word) => [...word].map((ch, i) => `<span style="--d:${i}">${ch}</span>`).join('');
+  function titleHtml(r, t, fontId, party) {
+    const font = FONTS.find((x) => x.id === fontId) || FONTS[0];
+    return `<span class="title" data-r="${r}" data-t="${t}" style="--tf:${font.f.replace(/"/g, '&quot;')};--tw:${font.w};--ls:${font.ls || 0}">`
+      + `<span class="rw">${letters('Rainbow')}</span>`
+      + `<span class="tw${party ? ' party' : ''}">${letters(party ? 'Party' : 'Timer')}</span></span>`;
+  }
+
+  function card(kind, item, html) {
+    const pressed = state[kind] === item.id;
+    return `<button type="button" class="opt" data-kind="${kind}" data-id="${item.id}" aria-pressed="${pressed}">${html}`
+      + `<span class="opt-label"><b>${item.name}</b><span>${item.info}</span></span></button>`;
+  }
+
+  function render() {
+    document.getElementById('stage-title').innerHTML = titleHtml(state.r, state.t, state.f, state.party);
+    const n = (list, id) => list.find((x) => x.id === id).name;
+    document.getElementById('summary').innerHTML = `<b>${n(RAINBOWS, state.r)}</b> · Timer: <b>${n(TIMERS, state.t)}</b> · <b>${n(FONTS, state.f)}</b>`;
+    document.getElementById('grid-r').innerHTML = RAINBOWS.map((x) => card('r', x, titleHtml(x.id, state.t, state.f, state.party))).join('');
+    document.getElementById('grid-t').innerHTML = TIMERS.map((x) => card('t', x, titleHtml(state.r, x.id, state.f, false))).join('');
+    document.getElementById('grid-f').innerHTML = FONTS.map((x) => card('f', x, titleHtml(state.r, state.t, x.id, state.party))).join('');
+    document.getElementById('mode-timer').setAttribute('aria-pressed', !state.party);
+    document.getElementById('mode-party').setAttribute('aria-pressed', state.party);
+    try { localStorage.setItem('rt-title-mockup', JSON.stringify(state)); } catch (e) {}
+  }
+
+  document.addEventListener('click', (e) => {
+    const opt = e.target.closest('.opt');
+    if (opt) {
+      state[opt.dataset.kind] = opt.dataset.id;
+      render();
+      document.querySelector(`.opt[data-kind="${opt.dataset.kind}"][data-id="${opt.dataset.id}"]`)?.focus();
+      return;
+    }
+    if (e.target.id === 'mode-timer' || e.target.id === 'mode-party') {
+      state.party = e.target.id === 'mode-party';
+      render();
+    }
+  });
+  render();
+</script>
