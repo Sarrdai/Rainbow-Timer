@@ -87,6 +87,11 @@ export default function Home() {
     }
   };
 
+  const handleBalloonPop = useCallback((x: number, y: number) => {
+    confetti.pointBurst({ x, y }, 60);
+    setTitleBangTrigger(Date.now());
+  }, []);
+
   const handleTitleClick = (e: React.MouseEvent<HTMLDivElement>) => handleTitleBurst(e.clientX, e.clientY);
   
   const handleInterruptCelebration = useCallback((e: MouseEvent | TouchEvent) => {
@@ -98,7 +103,7 @@ export default function Home() {
   return (
     <main className="relative h-dvh w-full overflow-hidden">
       <ConfettiLayer />
-      <PartyDecoration active={isPartyMode} visible={isTitleAndFooterVisible} avoidRef={titleRef} />
+      <PartyDecoration active={isPartyMode} visible={isTitleAndFooterVisible} avoidRef={titleRef} onBalloonPop={handleBalloonPop} />
 
       {/* Title: fixed above the viewport-centered dial.
           Dial half-sizes per breakpoint: 160 / 175 / 195 / 215 / 230 px

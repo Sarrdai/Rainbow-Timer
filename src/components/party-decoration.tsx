@@ -156,7 +156,7 @@ function buildScene(id: number, settled: boolean, avoid: DOMRect | null): Scene 
 const vars = (v: Record<string, string | number>) => v as CSSProperties;
 const fallVars = (f: Fall, H: number) => vars({ '--fall-delay': `${f.fallDelay}s`, '--fall-dur': `${f.fallDur}s`, '--fall-rot': `${f.fallRot}deg`, '--fall-dy': `${H + 60}px` });
 
-function SceneView({ scene, onPop }: { scene: Scene; onPop: (index: number) => void }) {
+function SceneView({ scene, onPop }: { scene: Scene; onPop: (index: number, x: number, y: number) => void }) {
     const { width: W, height: H } = scene;
     const exiting = scene.exitedAt !== null;
     return (
@@ -195,7 +195,11 @@ function SceneView({ scene, onPop }: { scene: Scene; onPop: (index: number) => v
                         <div className="party-balloon-bob" style={vars({ '--sway-delay': `${b.sway}s`, '--bob': `${b.bob}s` })}>
                             <svg viewBox="0 0 100 300">
                                 <path className="party-balloon-string" d="M50 118 C 40 150, 62 180, 48 215 S 56 270, 50 300" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth={1.6} opacity={0.7} />
-                                <g className="party-balloon-body" onPointerDown={() => !exiting && !b.popping && onPop(i)}>
+                                <g className="party-balloon-body" onPointerDown={(e) => {
+                                    if (exiting || b.popping) return;
+                                    const r = e.currentTarget.getBoundingClientRect();
+                                    onPop(i, r.left + r.width / 2, r.top + r.height / 2);
+                                }}>
                                     <path d="M50 4 C82 4 96 30 96 58 C96 90 70 110 53 113 L47 113 C30 110 4 90 4 58 C4 30 18 4 50 4 Z" fill={b.color} />
                                     <path d="M50 4 C82 4 96 30 96 58 C96 90 70 110 53 113 C78 96 88 70 84 44 C80 22 68 8 50 4 Z" fill="#000" opacity={0.14} />
                                     <ellipse cx="31" cy="34" rx="8" ry="16" transform="rotate(-24 31 34)" fill="#fff" opacity={0.45} />
@@ -223,9 +227,11 @@ interface PartyDecorationProps {
     visible: boolean;
     /** Element the garland's pennants keep clear of (the title) */
     avoidRef?: React.RefObject<HTMLElement | null>;
+    /** Called with the center of a balloon popped by a click (for sound and confetti) */
+    onBalloonPop?: (x: number, y: number) => void;
 }
 
-export function PartyDecoration({ active, visible, avoidRef }: PartyDecorationProps) {
+export function PartyDecoration({ active, visible, avoidRef, onBalloonPop }: PartyDecorationProps) {
     const [scenes, setScenes] = useState<Scene[]>([]);
     const nextId = useRef(1);
     const respawnTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
@@ -241,7 +247,8 @@ export function PartyDecoration({ active, visible, avoidRef }: PartyDecorationPr
             : sc)));
 
     // A clicked balloon bursts, then a new one floats into its place
-    const popBalloon = (sceneId: number, index: number) => {
+    const popBalloon = (sceneId: number, index: number, x: number, y: number) => {
+        onBalloonPop?.(x, y);
         updateBalloon(sceneId, index, (b) => ({ ...b, popping: true }));
         const t = setTimeout(() => {
             respawnTimers.current.delete(t);
@@ -291,7 +298,7 @@ export function PartyDecoration({ active, visible, avoidRef }: PartyDecorationPr
     if (!scenes.length) return null;
     return (
         <div aria-hidden="true" className={cn('transition-opacity duration-200', !visible && 'opacity-0 is-hidden')}>
-            {scenes.map((scene) => <SceneView key={scene.id} scene={scene} onPop={(i) => popBalloon(scene.id, i)} />)}
+            {scenes.map((scene) => <SceneView key={scene.id} scene={scene} onPop={(i, x, y) => popBalloon(scene.id, i, x, y)} />)}
         </div>
     );
 }
