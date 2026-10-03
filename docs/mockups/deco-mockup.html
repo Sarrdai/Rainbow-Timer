@@ -1,0 +1,873 @@
+<title>Rainbow Timer Deko</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;700;800&display=swap">
+<style>
+  /* Layout: live party stage (mode switch, start/stop) on top, then per app mode a row of garland cards and a row of corner cards, summary, notes. */
+  :root {
+    --bg: hsl(300 65% 92%);
+    --surface: hsl(0 0% 100% / 0.72);
+    --surface-active: #ffffff;
+    --ink: hsl(271 47% 25%);
+    --ink-soft: hsl(268 38% 47%);
+    --line: hsl(300 30% 82%);
+    --focus: #4b369d;
+    --pick: #e8336e;
+    /* The two app modes are shown as fixed scenes in both page themes */
+    --scene-light: hsl(300 65% 92%);
+    --scene-dark: hsl(249 40% 12%);
+    --font-display: "Fredoka", "Nunito", system-ui, sans-serif;
+    --font-ui: "Nunito", "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: hsl(249 40% 12%);
+      --surface: hsl(249 35% 17%);
+      --surface-active: hsl(249 32% 24%);
+      --ink: hsl(253 100% 94%);
+      --ink-soft: hsl(255 63% 79%);
+      --line: hsl(249 25% 28%);
+      --focus: #c9b8ff;
+      --pick: #ff6f9f;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: hsl(249 40% 12%);
+    --surface: hsl(249 35% 17%);
+    --surface-active: hsl(249 32% 24%);
+    --ink: hsl(253 100% 94%);
+    --ink-soft: hsl(255 63% 79%);
+    --line: hsl(249 25% 28%);
+    --focus: #c9b8ff;
+    --pick: #ff6f9f;
+    color-scheme: dark;
+  }
+
+  body { background: var(--bg); color: var(--ink); font: 500 15px/1.5 var(--font-ui); }
+  .page { max-width: 1080px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 64px; display: grid; gap: 36px; }
+  header { display: grid; gap: 4px; }
+  header p { margin: 0; color: var(--ink-soft); max-width: 66ch; }
+  h1 { margin: 0; font-size: 1.05rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+  h2 { margin: 0; font: 600 1.35rem/1.2 var(--font-display); text-wrap: balance; }
+  h3 { margin: 0; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+  section { display: grid; gap: 14px; }
+  section > p { margin: 0; color: var(--ink-soft); max-width: 66ch; }
+  button { font: inherit; color: inherit; }
+  button:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+
+  /* Stage controls */
+  .stage-wrap { display: grid; gap: 12px; }
+  .stage-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+  .seg { display: inline-flex; padding: 4px; gap: 4px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); }
+  .seg button { cursor: pointer; border: 0; background: none; padding: 5px 16px; border-radius: 999px; font-weight: 800; font-size: 0.88rem; color: var(--ink-soft); }
+  .seg button[aria-pressed="true"] { background: var(--surface-active); color: var(--ink); box-shadow: 0 1px 3px hsl(271 47% 25% / 0.15); }
+  .stage-sum { flex: 1 1 240px; min-width: 0; margin: 0; color: var(--ink-soft); font-size: 0.9rem; }
+  .stage-sum b { color: var(--ink); font-weight: 800; }
+  .btn { cursor: pointer; padding: 7px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-active); font-weight: 800; font-size: 0.88rem; }
+
+  /* Stage: a miniature of the app in party mode */
+  [data-mode="light"] { --scene: var(--scene-light); --face: #fff7ff; --tick: #4b369d; --hub: #ffffff; --thread: hsl(268 38% 47%); --wire: hsl(268 38% 47% / 0.5); --title-edge: hsl(271 60% 22% / 0.5); --dial-shadow: rgb(75 54 157 / 0.22); }
+  [data-mode="dark"] { --scene: var(--scene-dark); --face: #221c3d; --tick: #b9a8ea; --hub: #15122a; --thread: hsl(255 63% 79%); --wire: hsl(255 60% 85% / 0.28); --title-edge: hsl(253 100% 94% / 0.28); --dial-shadow: rgb(0 0 0 / 0.45); }
+  .stage { --spring: cubic-bezier(0.34, 1.56, 0.64, 1); position: relative; overflow: hidden; border-radius: 24px; background: var(--scene); border: 1px solid var(--line); transition: background-color 0.4s; isolation: isolate; }
+  .st-dial { position: absolute; z-index: 1; filter: drop-shadow(0 6px 18px var(--dial-shadow)); }
+  .dial-face { fill: var(--face); }
+  .dial-hub { fill: var(--hub); }
+  .dial-tick { stroke: var(--tick); }
+  .st-dial text { font: 600 15px var(--font-ui); text-anchor: middle; dominant-baseline: central; }
+  .st-title { position: absolute; left: 0; right: 0; z-index: 3; display: grid; justify-items: center; pointer-events: none; font-family: var(--font-display); font-weight: 700; line-height: 1; }
+  .st-word { display: flex; padding-bottom: 0.06em; filter: drop-shadow(0 0 0.5px var(--title-edge)) drop-shadow(0 0.045em 0 var(--title-edge)); }
+  .st-party { font-size: 0.78em; margin-top: 0.02em; }
+  .deco { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
+  .thread { stroke: var(--thread); stroke-opacity: 0.7; }
+  .wire { stroke: var(--wire); }
+
+  /* Balloons for comparison, same rig as in the app */
+  .bb { position: absolute; z-index: 4; left: var(--x); top: var(--y); width: var(--w); animation: rise 1.1s var(--spring) var(--d) both; }
+  @keyframes rise { from { transform: translateY(calc(var(--h) - var(--y) + 40px)) rotate(var(--tilt)); } }
+  .bob { position: relative; transform-origin: 50% 100%; animation: bob var(--bob) ease-in-out var(--sd) infinite; }
+  @keyframes bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-10px) rotate(3deg); } }
+  .bb svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .bb .body, .bb .bstr { transform-box: fill-box; }
+
+  /* Decoration motion: garlands drop in, items unfold and sway, lights switch on one after another */
+  .drop { transform-box: view-box; transform-origin: 50% 0; animation: drop-in 0.95s var(--spring) var(--d) both; }
+  @keyframes drop-in { from { transform: translateY(-110px) scaleY(0.2); } }
+  .item-in { animation: item-in 0.55s var(--spring) var(--d) both; }
+  @keyframes item-in { from { transform: scaleY(0) rotate(-14deg); } }
+  .sway { animation: sway 2.8s ease-in-out var(--sd) infinite; }
+  .sway.wide { animation-name: sway-wide; animation-duration: 2.4s; }
+  .sway.slow { animation-duration: 3.8s; }
+  .sway.gentle { animation-name: sway-gentle; animation-duration: 3.6s; }
+  @keyframes sway { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+  @keyframes sway-wide { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
+  @keyframes sway-gentle { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
+  .hang-in { animation: hang-in 1.1s var(--spring) var(--d) both; }
+  @keyframes hang-in { from { transform: translateY(var(--from, -260px)); } }
+  .pop-in { transform-box: fill-box; transform-origin: center; animation: pop-in 0.8s var(--spring) var(--d) both; }
+  @keyframes pop-in { from { transform: scale(0) rotate(-140deg); } }
+  .csway { transform-box: fill-box; transform-origin: 50% 0; animation: csway 3.4s ease-in-out var(--sd) infinite; }
+  .csway.gentle { animation-name: csway-gentle; }
+  @keyframes csway { 0%, 100% { transform: rotate(-2.5deg); } 50% { transform: rotate(2.5deg); } }
+  @keyframes csway-gentle { 0%, 100% { transform: rotate(-1.2deg); } 50% { transform: rotate(1.2deg); } }
+  .draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 1.25s cubic-bezier(0.25, 0.8, 0.25, 1) var(--d) forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  .lit { animation: light-on 0.6s linear var(--on) both; }
+  .lit.neon { animation: neon-on 1.1s linear var(--on) both; }
+  @keyframes light-on { 0% { opacity: 0; } 25% { opacity: 1; } 40% { opacity: 0.15; } 60%, 100% { opacity: 1; } }
+  @keyframes neon-on { 0% { opacity: 0.25; } 10% { opacity: 1; } 16% { opacity: 0.3; } 30% { opacity: 1; } 36% { opacity: 0.5; } 45%, 100% { opacity: 1; } }
+  .twinkle { transform-box: fill-box; transform-origin: center; animation: twinkle var(--tw, 2.4s) ease-in-out var(--twd, 0s) infinite alternate; }
+  .twinkle.calm { animation-name: breathe; }
+  @keyframes twinkle { from { opacity: 0.45; transform: scale(0.82); } to { opacity: 1; transform: scale(1.06); } }
+  @keyframes breathe { from { opacity: 0.72; } to { opacity: 1; } }
+  .drip { animation: drip 2.6s linear var(--twd) infinite; }
+  @keyframes drip { 0%, 40%, 100% { opacity: 0.32; } 8% { opacity: 1; } }
+  .blink { transform-box: fill-box; transform-origin: center; animation: blink var(--tw) ease-in-out var(--twd) infinite; }
+  @keyframes blink { 0%, 55%, 100% { transform: scale(0); } 78% { transform: scale(1) rotate(45deg); } }
+
+  /* Ending the party: lights go out one after another, then everything falls; balloons pop */
+  .is-exiting .fall { transform-box: fill-box; transform-origin: 50% 0; animation: fall var(--fdur) cubic-bezier(0.5, 0, 0.9, 0.6) var(--fdel) forwards; }
+  @keyframes fall { 0% { transform: none; opacity: 1; } 80% { opacity: 1; } 100% { transform: translateY(var(--fdy)) rotate(var(--frot)); opacity: 0; } }
+  .is-exiting .lit { animation: light-off 0.2s ease-in var(--off) forwards; }
+  .is-exiting .lit.neon { animation-name: neon-off; }
+  @keyframes light-off { to { opacity: 0; } }
+  @keyframes neon-off { to { opacity: 0.25; } }
+  .is-exiting .bb .body { transform-origin: 50% 50%; animation: burst 0.14s ease-out var(--pop) forwards; }
+  @keyframes burst { to { transform: scale(1.3); opacity: 0; } }
+  .is-exiting .bb .bstr { --fdy: 260px; --frot: 40deg; transform-origin: 50% 0; animation: fall 0.8s cubic-bezier(0.5, 0, 0.9, 0.6) calc(var(--pop) + 0.05s) forwards; }
+
+  /* Option cards */
+  .row { display: grid; gap: 10px; }
+  .grid { display: grid; gap: 12px; }
+  .grid.top { grid-template-columns: minmax(0, 1fr); }
+  .grid.corner { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (min-width: 700px) { .grid.top { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 900px) { .grid.corner { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .opt { cursor: pointer; position: relative; display: grid; grid-template-rows: auto 1fr; gap: 10px; padding: 8px 8px 12px; border-radius: 20px; background: var(--surface); border: 2px solid transparent; text-align: left; transition: border-color 0.15s, transform 0.15s; min-width: 0; }
+  .opt:hover { transform: translateY(-2px); }
+  .opt[aria-checked="true"] { border-color: var(--focus); background: var(--surface-active); }
+  .art { display: block; border-radius: 14px; overflow: hidden; background: var(--scene); }
+  .art svg { display: block; width: 100%; height: auto; }
+  .opt-label { display: grid; gap: 2px; align-content: start; padding-inline: 6px 30px; font-size: 0.85rem; line-height: 1.4; min-width: 0; overflow-wrap: anywhere; hyphens: auto; }
+  .opt-name { font: 600 1.02rem/1.25 var(--font-display); }
+  .opt-info { color: var(--ink-soft); }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .chip { font-size: 0.66rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-soft); }
+  .chip.rec { border-color: var(--pick); color: var(--pick); }
+  .radio { position: absolute; right: 14px; bottom: 14px; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line); }
+  .opt[aria-checked="true"] .radio { border-color: var(--focus); background: radial-gradient(var(--focus) 0 4px, transparent 5px); }
+
+  .picked { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 14px 16px; border-radius: 18px; border: 1px dashed var(--line); }
+  .picked-text { flex: 1 1 280px; min-width: 0; margin: 0; }
+  .picked-text b { font-weight: 800; }
+  .notes { margin: 0; padding-left: 1.2em; color: var(--ink-soft); max-width: 72ch; display: grid; gap: 6px; }
+  .notes b { color: var(--ink); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bb, .bob, .drop, .item-in, .sway, .hang-in, .pop-in, .csway, .draw, .lit, .twinkle, .drip, .blink { animation: none !important; }
+    .draw { stroke-dashoffset: 0; }
+    .is-exiting .deco, .is-exiting .bb { animation: fade 0.3s forwards !important; }
+    @keyframes fade { to { opacity: 0; } }
+    .opt, .stage { transition: none; }
+  }
+</style>
+
+<main class="page" lang="de">
+  <header>
+    <h1>Rainbow Timer · Deko-Mockup</h1>
+    <p>Vorschläge, wie Girlande und Luftschlangen den Detailgrad der Ballons erreichen: Schattenseite unten rechts, Glanzlichter oben links, Stoff- und Papierstrukturen. Im Dunkel-Modus hängen Lichter statt Wimpel. Wähle pro Bereich eine Variante, die Vorschau baut die Kombination auf.</p>
+  </header>
+
+  <div class="stage-wrap">
+    <div class="stage-bar">
+      <div class="seg" role="group" aria-label="Modus der Vorschau">
+        <button type="button" id="mode-light" aria-pressed="true">Hell</button>
+        <button type="button" id="mode-dark" aria-pressed="false">Dunkel</button>
+      </div>
+      <p class="stage-sum" id="stage-sum"></p>
+      <button type="button" class="btn" id="party-toggle">Party beenden</button>
+    </div>
+    <div class="stage" id="stage" data-mode="light" aria-label="Vorschau der Party-Deko"></div>
+  </div>
+
+  <section id="light">
+    <h2>Hell-Modus</h2>
+    <p>Gleiche Zeichensprache wie die Ballons: flache Farbflächen, eine dunklere Seite, weiße Glanzlichter und kleine Details wie Naht, Saum oder Knoten.</p>
+  </section>
+
+  <section id="dark">
+    <h2>Dunkel-Modus</h2>
+    <p>Nachts leuchtet die Party. Lichterketten, Lampions und Sterne glühen auf dem dunklen Grund. Beim Start gehen die Lichter nacheinander an, beim Beenden wieder aus, erst dann fällt die Kette.</p>
+  </section>
+
+  <div class="picked">
+    <p class="picked-text" id="picked-text"></p>
+    <button type="button" class="btn" id="copy">Auswahl kopieren</button>
+    <button type="button" class="btn" id="reset">Empfehlung wiederherstellen</button>
+  </div>
+
+  <section>
+    <h2>So würde es in der App laufen</h2>
+    <ul class="notes">
+      <li><b>Theme-Wechsel während der Party:</b> Die Deko blendet zwischen Hell- und Dunkel-Variante über, die Ballons bleiben hängen.</li>
+      <li><b>Aufbau und Abbau:</b> Stoff und Papier fallen wie heute zu Boden. Lichter gehen zuerst nacheinander aus, dann fällt die Kette.</li>
+      <li><b>Titel:</b> Hinter dem Titel bleiben Wimpel und Lampen weg, wie heute.</li>
+      <li><b>Handy:</b> Weniger Elemente pro Ecke, gleiche Größen wie auf dem Desktop.</li>
+      <li><b>Leistung:</b> Das Leuchten entsteht aus Farbverläufen statt aus Weichzeichner-Filtern und läuft so auch auf älteren Handys flüssig. Bei „Bewegung reduzieren“ leuchtet alles ruhig ohne Funkeln.</li>
+    </ul>
+  </section>
+</main>
+
+<script>
+  const RAINBOW = ['#e81416', '#ffa500', '#faeb36', '#79c314', '#487de7', '#4b369d', '#70369d'];
+  /** Brighter versions of the rainbow colors for lights in the dark */
+  const GLOW = ['#ff6b6d', '#ffb84a', '#fff27a', '#a8ea5c', '#86b4ff', '#a993ff', '#d897ff'];
+  const STAR_COLORS = ['#ffd54a', '#ff9ec8', '#8fd0ff', '#ffd54a', '#c3a1ff', '#a8ea5c'];
+  const INK = '#2d1b3d';
+  const GOLD = '#ffc94d';
+  const GOLD_DARK = '#e6a417';
+
+  const f1 = (n) => Math.round(n * 10) / 10;
+  const f2 = (n) => Math.round(n * 100) / 100;
+  let uidCount = 0;
+  const uid = (p) => `${p}${uidCount++}`;
+
+  function mulberry32(a) {
+    return () => {
+      a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /** Mix a hex color toward black (k < 0) or white (k > 0) */
+  function mix(hex, k) {
+    const n = parseInt(hex.slice(1), 16), t = k < 0 ? 0 : 255, a = Math.abs(k);
+    const ch = (v) => Math.round(v + (t - v) * a);
+    return `rgb(${ch(n >> 16)} ${ch((n >> 8) & 255)} ${ch(n & 255)})`;
+  }
+
+  /** Drawing context: size, seeded randomness, per-SVG defs and the entrance offset (settled scenes start finished) */
+  function makeCtx(W, H, seed, { settled = true, avoid = null, small = W < 600 } = {}) {
+    const rnd = mulberry32(seed), prefix = uid('s'), defs = new Map();
+    return {
+      W, H, small, avoid, base: settled ? -5 : 0,
+      rand: (a, b) => a + rnd() * (b - a),
+      def(key, make) { const id = `${prefix}-${key}`; if (!defs.has(id)) defs.set(id, make(id)); return `url(#${id})`; },
+      defsMarkup: () => [...defs.values()].join(''),
+    };
+  }
+  const dly = (c, d) => `${f2(c.base + d)}s`;
+  const fallStyle = (c, min, max) => `--fdel:${f2(c.rand(min, max))}s;--fdur:${f2(c.rand(0.8, 1.1))}s;--frot:${f1(c.rand(-25, 25))}deg;--fdy:${c.H + 60}px`;
+
+  /* ---------- Shared drawing helpers (same flat shading as the balloons) ---------- */
+  function shade(shapes, fill, { dark = 0.14, dx = -5, dy = -4 } = {}) {
+    const id = uid('c');
+    return `<clipPath id="${id}">${shapes}</clipPath><g fill="${fill}">${shapes}</g><g fill="#000" opacity="${dark}">${shapes}</g>`
+      + `<g clip-path="url(#${id})"><g fill="${fill}" transform="translate(${f1(dx)} ${f1(dy)})">${shapes}</g></g>`;
+  }
+  const hl = (x, y, rx, ry, rot = -30, op = 0.45) => `<ellipse cx="${f1(x)}" cy="${f1(y)}" rx="${f1(rx)}" ry="${f1(ry)}" transform="rotate(${rot} ${f1(x)} ${f1(y)})" fill="#fff" opacity="${op}"/>`;
+  const line = (d, w = 2.2, color = INK, op = 1) => `<path d="${d}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" opacity="${op}"/>`;
+  const toPath = (pts) => pts.map(([x, y], i) => `${i ? 'L' : 'M'}${f1(x)} ${f1(y)}`).join('');
+  function starPath(cx, cy, R, r = R * 0.45) {
+    return Array.from({ length: 10 }, (_, k) => {
+      const a = ((-90 + k * 36) * Math.PI) / 180, rr = k % 2 ? r : R;
+      return `${k ? 'L' : 'M'}${f1(cx + rr * Math.cos(a))} ${f1(cy + rr * Math.sin(a))}`;
+    }).join('') + 'Z';
+  }
+  /** A group hanging from (x, y): unfolds on entrance, then sways around its hang point */
+  const hang = (c, x, y, angle, d, inner, sway = 'sway') =>
+    `<g transform="translate(${f1(x)} ${f1(y)}) rotate(${f1(angle)})"><g class="item-in" style="--d:${dly(c, d)}"><g class="${sway}" style="--sd:${f2(-c.rand(0, 3.5))}s">${inner}</g></g></g>`;
+  /** A group on a string from the top edge: drops in from above and swings */
+  const dangle = (c, x, len, d, inner, sway = 'sway gentle') =>
+    `<g class="fall" style="${fallStyle(c, 0.15, 0.4)}"><g transform="translate(${f1(x)} 0)"><g class="hang-in" style="--d:${dly(c, d)};--from:${-Math.round(len + 80)}px"><g class="${sway}" style="--sd:${f2(-c.rand(0, 3.6))}s">${inner}</g></g></g></g>`;
+  const lit = (c, on, off, inner, cls = 'lit') => `<g class="${cls}" style="--on:${dly(c, on)};--off:${f2(off)}s">${inner}</g>`;
+  const glowDef = (c, key, color, strength = 0.75) => c.def(key, (id) =>
+    `<radialGradient id="${id}"><stop offset="0" stop-color="${color}" stop-opacity="${strength}"/><stop offset=".4" stop-color="${color}" stop-opacity="${f2(strength * 0.34)}"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></radialGradient>`);
+  const twinkle = (c, cls = 'twinkle') => `class="${cls}" style="--tw:${f2(c.rand(1.4, 2.8))}s;--twd:${f2(-c.rand(0, 3))}s"`;
+
+  /* ---------- Garland geometry (scallops across the top edge, as in the app) ---------- */
+  function scallops(c) {
+    const n = Math.max(2, Math.round(c.W / 420)), span = (c.W + 40) / n, sag = Math.min(70, span * 0.16), top = 6;
+    return Array.from({ length: n }, (_, k) => {
+      const x0 = -20 + k * span, mid = x0 + span / 2, half = span / 2;
+      const y = (x) => top + sag * (1 - ((x - mid) / half) ** 2);
+      const angle = (x) => (Math.atan((-2 * sag * (x - mid)) / half ** 2) * 180) / Math.PI;
+      const path = (dy = () => 0, step = 3) => {
+        let d = '';
+        for (let x = x0; x <= x0 + span + 0.5; x += step) d += `${d ? 'L' : 'M'}${f1(x)} ${f1(y(x) + dy(x))}`;
+        return d;
+      };
+      /** Evenly spaced hang points; those that would hang behind the title are left out */
+      const points = (gap, h) => {
+        const count = Math.max(3, Math.floor(span / gap)), out = [];
+        for (let i = 1; i < count; i++) {
+          const x = x0 + (i * span) / count, yy = y(x);
+          if (c.avoid && x > c.avoid.left - 20 && x < c.avoid.right + 20 && yy + h > c.avoid.top) continue;
+          out.push({ x, y: yy, a: angle(x), i });
+        }
+        return out;
+      };
+      return { k, y, path, points, delay: 0.05 + Math.abs(k - (n - 1) / 2) * 0.08 };
+    });
+  }
+  const garland = (c, s, inner, fall = [0.25, 0.45]) =>
+    `<g class="fall" style="${fallStyle(c, ...fall)}"><g class="drop" style="--d:${dly(c, s.delay)}">${inner}</g></g>`;
+  const colorAt = (s, p, shift = 0) => (p.i + s.k * 3 + shift) % 7;
+
+  /* ---------- Light mode: garlands ---------- */
+  function topNow(c) {
+    return scallops(c).map((s) => {
+      const pair = [RAINBOW[(s.k * 2) % 7], RAINBOW[(s.k * 2 + 3) % 7]];
+      const twist = [0, Math.PI].map((ph, j) => `<path class="draw" pathLength="1" style="--d:${dly(c, s.delay)}" d="${s.path((x) => 4 * Math.sin(x / 9 + ph))}" fill="none" stroke="${pair[j]}" stroke-width="4.5" stroke-linecap="round"/>`).join('');
+      const flags = s.points(62, 32).map((p) => hang(c, p.x, p.y + 2, 0, s.delay + 0.35 + p.i * 0.06,
+        `<path d="M-15 0 L15 0 L0 32 Z" fill="${RAINBOW[colorAt(s, p)]}"/><path d="M-15 0 L15 0 L11 4 L-11 4 Z" fill="#000" opacity=".12"/>`)).join('');
+      return garland(c, s, twist + flags);
+    }).join('');
+  }
+
+  const PENNANT = 'M-18 0 L18 0 Q7.5 21 0 42 Q-7.5 21 -18 0 Z';
+  function topFabric(c) {
+    const patterns = [
+      c.def('dots', (id) => `<pattern id="${id}" width="8" height="8" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.5" fill="#fff" opacity=".75"/><circle cx="6" cy="6" r="1.5" fill="#fff" opacity=".75"/></pattern>`),
+      c.def('stripes', (id) => `<pattern id="${id}" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(40)"><rect width="2.6" height="7" fill="#fff" opacity=".42"/></pattern>`),
+      null,
+      c.def('zigzag', (id) => `<pattern id="${id}" width="8" height="7" patternUnits="userSpaceOnUse"><path d="M0 4.5 L2 2.5 L4 4.5 L6 2.5 L8 4.5" fill="none" stroke="#fff" stroke-width="1.3" opacity=".65"/></pattern>`),
+    ];
+    return scallops(c).map((s) => {
+      const d = s.path();
+      // Cotton cord: soft edge, cream core, twist marks
+      const cord = `<path d="${d}" fill="none" stroke="#6b4a8a" stroke-opacity=".45" stroke-width="4.4" stroke-linecap="round"/><path d="${d}" fill="none" stroke="#fffaf2" stroke-width="2.8" stroke-linecap="round"/><path d="${d}" fill="none" stroke="#d8c6b2" stroke-width="2.8" stroke-dasharray="1.2 2.8"/>`;
+      const flags = s.points(48, 44).map((p) => {
+        const col = RAINBOW[colorAt(s, p)], pattern = patterns[(p.i + s.k) % 4];
+        return hang(c, p.x, p.y, p.a * 0.85, s.delay + 0.3 + p.i * 0.05,
+          `<path d="${PENNANT}" fill="${col}"/>`
+          + (pattern ? `<path d="${PENNANT}" fill="${pattern}"/>` : `<path d="${starPath(0, 17, 7)}" fill="#fff" stroke="#fff" stroke-width="1.4" stroke-linejoin="round" opacity=".9"/>`)
+          + '<path d="M0 0 L18 0 Q7.5 21 0 42 Z" fill="#000" opacity=".13"/>'
+          + '<path d="M-13.5 5.5 L13.5 5.5 Q5.6 20 0 34 Q-5.6 20 -13.5 5.5 Z" fill="none" stroke="#fff" stroke-width="1.1" stroke-dasharray="2.4 2.2" opacity=".8"/>'
+          + '<path d="M-14 4 Q-7.6 18.5 -2.4 31" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".35"/>'
+          + `<rect x="-18.5" y="-3.5" width="37" height="7" rx="2.2" fill="${col}"/><rect x="-18.5" y="-3.5" width="37" height="7" rx="2.2" fill="#000" opacity=".22"/>`
+          + '<path d="M-16.5 -2 H16.5" stroke="#fff" stroke-width="1" opacity=".35"/>');
+      }).join('');
+      return garland(c, s, cord + flags);
+    }).join('');
+  }
+
+  const TONGUE = 'M-15 0 L15 0 L15 21 A15 15 0 0 1 -15 21 Z';
+  function topRound(c) {
+    return scallops(c).map((s) => {
+      const d = s.path((x) => 1.6 * Math.sin(x * 1.25), 1.2);
+      const cord = `<path d="${d}" fill="none" stroke="#6b4a8a" stroke-opacity=".35" stroke-width="3.8" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="#fff" stroke-width="2.4" stroke-linejoin="round"/>`;
+      const pts = s.points(46, 38);
+      const flags = pts.map((p) => {
+        const col = RAINBOW[colorAt(s, p)];
+        return hang(c, p.x, p.y, p.a * 0.85, s.delay + 0.3 + p.i * 0.05,
+          shade(`<path d="${TONGUE}"/>`, col, { dx: -3, dy: -2.5 })
+          + '<g fill="#fff" opacity=".6"><circle cx="5" cy="8" r="2.3"/><circle cx="-4" cy="16" r="2.3"/><circle cx="7" cy="21" r="2.3"/><circle cx="0" cy="29" r="2"/></g>'
+          + '<path d="M-11 21 A11 11 0 0 0 11 21" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-dasharray="0.1 3.4" opacity=".9"/>'
+          + hl(-9, 10, 2.2, 5.5, -6, 0.42)
+          + `<rect x="-16" y="-3" width="32" height="6" rx="2" fill="${col}"/><rect x="-16" y="-3" width="32" height="6" rx="2" fill="#000" opacity=".2"/>`);
+      }).join('');
+      // Pompom beads between neighboring pennants
+      const beads = pts.slice(1).map((p, j) => {
+        const q = pts[j];
+        if (p.i !== q.i + 1) return '';
+        const x = (p.x + q.x) / 2, col = RAINBOW[colorAt(s, p, 3)];
+        return hang(c, x, s.y(x), 0, s.delay + 0.5 + p.i * 0.05, shade('<circle cx="0" cy="3" r="5"/>', col, { dx: -1.5, dy: -1.5 }) + hl(-1.6, 1.4, 1.1, 1.8, -30, 0.6), 'still');
+      }).join('');
+      return garland(c, s, cord + flags + beads);
+    }).join('');
+  }
+
+  const TASSEL_SKIRT = 'M-4.5 13 C-6 24 -8.5 36 -10 45 L-7.5 47.5 L-5 45.5 L-2.5 48 L0 46 L2.5 48 L5 45.5 L7.5 47.5 L10 45 C8.5 36 6 24 4.5 13 Z';
+  function tassel(col) {
+    const strands = [-8, -5.5, -3, -0.5, 2, 4.5, 7].map((x) => `M${f1(x * 0.42)} 14 L${x} 45`).join(' ');
+    return `<ellipse cx="0" cy="0" rx="2.4" ry="3.4" fill="none" stroke="${col}" stroke-width="1.5"/>`
+      + `<path d="M-3 3 Q0 1.2 3 3 L4.4 11 L-4.4 11 Z" fill="${col}"/><path d="M0.8 2.2 Q2.2 2.3 3 3 L4.4 11 L1.2 11 Z" fill="#000" opacity=".12"/>`
+      + `<path d="${TASSEL_SKIRT}" fill="${col}"/>`
+      + `<path d="${strands}" fill="none" stroke="#000" stroke-opacity=".16" stroke-width=".8"/>`
+      + '<path d="M-2.9 15 L-6.5 44 M-1.6 15 L-3.6 44" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="1"/>'
+      + '<path d="M1.5 13 L4.5 13 C6 24 8.5 36 10 45 L7.5 47.5 L5 45.5 L2.5 48 L1.5 47 Z" fill="#000" opacity=".12"/>'
+      + `<rect x="-5" y="10" width="10" height="3.6" rx="1.2" fill="${GOLD}"/><rect x="0.6" y="10" width="4.4" height="3.6" rx="1" fill="${GOLD_DARK}"/><path d="M-4 11.2 H-0.6" stroke="#fff" stroke-width=".9" opacity=".75"/>`;
+  }
+  function topTassel(c) {
+    return scallops(c).map((s) => {
+      const d = s.path();
+      const cord = `<path d="${d}" fill="none" stroke="${GOLD_DARK}" stroke-width="2.6" stroke-linecap="round"/><path d="${d}" fill="none" stroke="#ffe39a" stroke-width="1" transform="translate(0 -0.6)"/>`;
+      const tassels = s.points(30, 48).map((p) => hang(c, p.x, p.y, 0, s.delay + 0.3 + p.i * 0.04, tassel(RAINBOW[colorAt(s, p)]), 'sway wide')).join('');
+      return garland(c, s, cord + tassels);
+    }).join('');
+  }
+
+  /* ---------- Dark mode: garlands of light ---------- */
+  const lightTiming = (c, s, p) => ({ on: s.delay + 0.75 + (p.x / c.W) * 0.9, off: (p.x / c.W) * 0.45 });
+  const BULB = 'M0 7.5 C4.6 7.5 6.6 12.5 6.2 17.5 C5.8 22.5 2.6 27 0 29.5 C-2.6 27 -5.8 22.5 -6.2 17.5 C-6.6 12.5 -4.6 7.5 0 7.5 Z';
+  function topFairy(c) {
+    return scallops(c).map((s) => {
+      const cord = [0, Math.PI].map((ph, j) => `<path d="${s.path((x) => 1.1 * Math.sin(x / 2.6 + ph), 1.5)}" fill="none" stroke="${j ? '#2f5a40' : '#1d3a29'}" stroke-width="1.7" stroke-linecap="round"/>`).join('');
+      const bulbs = s.points(36, 32).map((p) => {
+        const i = colorAt(s, p), t = lightTiming(c, s, p);
+        const glow = glowDef(c, `glow${i}`, GLOW[i], 0.8);
+        const glass = c.def(`bulb${i}`, (id) => `<radialGradient id="${id}" cx=".42" cy=".62" r=".7"><stop offset="0" stop-color="#fffbe8"/><stop offset=".4" stop-color="${GLOW[i]}"/><stop offset="1" stop-color="${RAINBOW[i]}"/></radialGradient>`);
+        return hang(c, p.x, p.y, (p.i % 2 ? 1 : -1) * c.rand(8, 22), s.delay + 0.3 + p.i * 0.04,
+          `<path d="${BULB}" fill="${mix(RAINBOW[i], -0.55)}"/>`
+          + lit(c, t.on, t.off, `<circle ${twinkle(c)} cx="0" cy="19" r="22" fill="${glow}"/><path d="${BULB}" fill="${glass}"/>${hl(-2.4, 15, 1.4, 3.8, 12, 0.75)}`)
+          + '<rect x="-3.6" y="-1.5" width="7.2" height="10" rx="1.8" fill="#24452f"/><rect x="0.6" y="-1.5" width="3" height="10" rx="1.2" fill="#000" opacity=".3"/><path d="M-3.6 2.5 H3.6 M-3.6 5 H3.6" stroke="#000" stroke-opacity=".35" stroke-width=".7"/>');
+      }).join('');
+      return garland(c, s, cord + bulbs, [0.75, 0.95]);
+    }).join('');
+  }
+
+  function topFestoon(c) {
+    const FILAMENT = 'M-3.4 27.5 l1.7 -2.6 l1.7 2.6 l1.7 -2.6 l1.7 2.6';
+    return scallops(c).map((s) => {
+      const d = s.path();
+      const cord = `<path d="${d}" fill="none" stroke="#0b0918" stroke-width="3" stroke-linecap="round"/><path d="${d}" fill="none" stroke="#5a5290" stroke-opacity=".7" stroke-width=".9" transform="translate(0 -0.8)"/>`;
+      const globes = s.points(62, 42).map((p) => {
+        const i = colorAt(s, p), t = lightTiming(c, s, p), tint = GLOW[i];
+        const glow = glowDef(c, `fglow${i}`, tint, 0.6);
+        const glass = c.def(`fglass${i}`, (id) => `<radialGradient id="${id}" cx=".45" cy=".55" r=".62"><stop offset="0" stop-color="#fffef5"/><stop offset=".38" stop-color="#ffefc2"/><stop offset="1" stop-color="${tint}"/></radialGradient>`);
+        return hang(c, p.x, p.y, 0, s.delay + 0.3 + p.i * 0.05,
+          '<path d="M0 0 V9" stroke="#0b0918" stroke-width="1.6"/>'
+          + '<circle cx="0" cy="27" r="11.5" fill="#fff" fill-opacity=".07" stroke="#fff" stroke-opacity=".22"/>'
+          + `<path d="${FILAMENT}" fill="none" stroke="#c8a46a" stroke-opacity=".5" stroke-width=".9"/>`
+          + lit(c, t.on, t.off, `<circle ${twinkle(c, 'twinkle calm')} cx="0" cy="27" r="40" fill="${glow}"/><circle cx="0" cy="27" r="11.5" fill="${glass}"/><path d="${FILAMENT}" fill="none" stroke="#fff6cf" stroke-width="1.2" stroke-linejoin="round"/>`)
+          + '<path d="M-7.5 23.5 A8.5 8.5 0 0 1 -2.5 18.8" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".6"/>'
+          + '<rect x="-4.2" y="7.5" width="8.4" height="9.5" rx="1.6" fill="#1b1830"/><path d="M-4.2 10.5 H4.2 M-4.2 13.5 H4.2" stroke="#4a4370" stroke-width=".8"/>',
+          'sway slow');
+      }).join('');
+      return garland(c, s, cord + globes, [0.75, 0.95]);
+    }).join('');
+  }
+
+  function lantern(c, i, L, t) {
+    const cy = L + 17, rx = 15, ry = 13;
+    const glow = glowDef(c, `lglow${i}`, GLOW[i], 0.6);
+    const paper = c.def(`lamp${i}`, (id) => `<radialGradient id="${id}" cx=".45" cy=".45" r=".62"><stop offset="0" stop-color="#fff4cc"/><stop offset=".5" stop-color="${GLOW[i]}"/><stop offset="1" stop-color="${RAINBOW[i]}"/></radialGradient>`);
+    const ribs = [-8.5, -4.2, 0, 4.2, 8.5].map((dy) => {
+      const w = rx * Math.sqrt(1 - (dy / ry) ** 2);
+      return `M${f1(-w)} ${f1(cy + dy)} Q0 ${f1(cy + dy + 2.4)} ${f1(w)} ${f1(cy + dy)}`;
+    }).join(' ');
+    return `<path d="M0 0 V${L + 1}" stroke="#4a4370" stroke-width="1"/>`
+      + `<ellipse cx="0" cy="${cy}" rx="${rx}" ry="${ry}" fill="${mix(RAINBOW[i], -0.6)}"/>`
+      + lit(c, t.on, t.off, `<circle ${twinkle(c, 'twinkle calm')} cx="0" cy="${cy}" r="40" fill="${glow}"/><ellipse cx="0" cy="${cy}" rx="${rx}" ry="${ry}" fill="${paper}"/>`)
+      + `<path d="${ribs}" fill="none" stroke="#000" stroke-opacity=".2" stroke-width=".9"/>`
+      + `<rect x="-6.5" y="${L + 1}" width="13" height="3.4" rx="1.2" fill="#2a2340"/><rect x="-5.5" y="${cy + ry - 1.6}" width="11" height="3" rx="1.2" fill="#2a2340"/>`
+      + `<path d="M-2 ${cy + ry + 1.4} V${cy + ry + 9} M0 ${cy + ry + 1.4} V${cy + ry + 10} M2 ${cy + ry + 1.4} V${cy + ry + 9}" stroke="${GLOW[i]}" stroke-width="1" opacity=".75"/>`;
+  }
+  function topLantern(c) {
+    return scallops(c).map((s) => {
+      const cord = `<path d="${s.path()}" fill="none" stroke="#3a3260" stroke-width="1.5" stroke-linecap="round"/>`;
+      const lanterns = s.points(58, 58).map((p) => hang(c, p.x, p.y, 0, s.delay + 0.3 + p.i * 0.05, lantern(c, colorAt(s, p), 4 + (p.i % 3) * 7, lightTiming(c, s, p)), 'sway slow')).join('');
+      return garland(c, s, cord + lanterns, [0.75, 0.95]);
+    }).join('');
+  }
+
+  /* ---------- Corners ---------- */
+  function curlSpecs(c) {
+    const perSide = c.small ? 3 : 5, out = [];
+    for (const side of [1, -1]) {
+      let x = side === 1 ? 14 : c.W - 14;
+      for (let i = 0; i < perSide; i++) {
+        const len = c.H * c.rand(0.22, 0.5) * (1 - i * 0.08), ci = (i * 2 + (side === 1 ? 0 : 1)) % 7;
+        out.push({ x, side, len, ci, color: RAINBOW[ci], amp: c.rand(7, 12), turns: len / c.rand(32, 44), width: c.rand(4, 6), delay: 0.25 + i * 0.09, sway: c.rand(0, 3.4) });
+        x += side * c.rand(26, 38);
+      }
+    }
+    return out;
+  }
+  /** Helix hanging from the top edge, seen slightly from above (loop > 0 lets the back of each turn rise, so turns overlap) */
+  function curlPoints(s, loop) {
+    return Array.from({ length: 221 }, (_, n) => {
+      const t = n / 220, th = t * s.turns * 2 * Math.PI, amp = s.amp * (0.35 + 0.65 * t);
+      return [s.x + s.side * amp * Math.sin(th), -6 + t * s.len + loop * amp * Math.cos(th), Math.cos(th) >= 0];
+    });
+  }
+  const curlGroup = (c, s, inner) => `<g class="fall" style="${fallStyle(c, 0.05, 0.35)}"><g class="csway" style="--sd:${f2(-s.sway)}s">${inner}</g></g>`;
+
+  function cornerNow(c) {
+    return curlSpecs(c).map((s) => curlGroup(c, s,
+      `<path class="draw" pathLength="1" style="--d:${dly(c, s.delay)}" d="${toPath(curlPoints(s, 0))}" fill="none" stroke="${s.color}" stroke-width="${f1(s.width)}" stroke-linecap="round" stroke-linejoin="round"/>`)).join('');
+  }
+
+  function cornerCurl3d(c) {
+    return curlSpecs(c).map((s) => {
+      const pts = curlPoints(s, 0.85), full = toPath(pts), w = f1(s.width + 1.6);
+      // The front of each turn is drawn over the back, which shows the darker inside of the ribbon
+      const runs = [];
+      let run = null;
+      pts.forEach((p, i) => {
+        if (p[2]) { if (!run) { run = i ? [pts[i - 1]] : []; runs.push(run); } run.push(p); }
+        else if (run) { run.push(p); run = null; }
+      });
+      const front = runs.map(toPath).join('');
+      const mask = uid('m');
+      return curlGroup(c, s,
+        `<mask id="${mask}" maskUnits="userSpaceOnUse" x="-60" y="-60" width="${c.W + 120}" height="${c.H + 120}"><path class="draw" pathLength="1" style="--d:${dly(c, s.delay)}" d="${full}" fill="none" stroke="#fff" stroke-width="${f1(+w + 18)}" stroke-linecap="round"/></mask>`
+        + `<g mask="url(#${mask})">`
+        + `<path d="${full}" fill="none" stroke="${s.color}" stroke-width="${w}" stroke-linejoin="round"/>`
+        + `<path d="${full}" fill="none" stroke="#000" stroke-opacity=".34" stroke-width="${w}" stroke-linejoin="round"/>`
+        + `<path d="${front}" fill="none" stroke="${s.color}" stroke-width="${w}" stroke-linejoin="round"/>`
+        + `<path d="${front}" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="${f1(w * 0.22)}" stroke-linecap="round" transform="translate(0 ${f1(-w * 0.24)})"/>`
+        + '</g>');
+    }).join('');
+  }
+
+  /** Accordion paper fan: alternating pleats with a zigzag rim and a round button */
+  function fan(cx, cy, r, col, button) {
+    const N = 36, p = (a, rr) => `${f1(cx + rr * Math.cos(a))} ${f1(cy + rr * Math.sin(a))}`;
+    let all = '', dark = '';
+    for (let i = 0; i < N; i++) {
+      const a0 = (i / N) * 2 * Math.PI, a1 = ((i + 1) / N) * 2 * Math.PI;
+      const wedge = `M${f1(cx)} ${f1(cy)}L${p(a0, i % 2 ? r * 0.9 : r)}L${p(a1, i % 2 ? r : r * 0.9)}Z`;
+      all += wedge;
+      if (i % 2) dark += wedge;
+    }
+    return `<path d="${all}" fill="${col}" stroke="${col}" stroke-width=".6" stroke-linejoin="round"/><path d="${dark}" fill="#000" opacity=".17"/>`
+      + `<path d="${all}" fill="none" stroke="#fff" stroke-opacity=".18" stroke-width=".6"/>`
+      + `<circle cx="${f1(cx)}" cy="${f1(cy)}" r="${f1(r * 0.3)}" fill="#fff" opacity=".9"/>`
+      + shade(`<circle cx="${f1(cx)}" cy="${f1(cy)}" r="${f1(r * 0.22)}"/>`, button, { dx: -r * 0.05, dy: -r * 0.05 })
+      + hl(cx - r * 0.08, cy - r * 0.08, r * 0.05, r * 0.08, -35, 0.6);
+  }
+  function honeyBall(r, col) {
+    const meridians = [0.36, 0.7, 0.94].map((k) => `<ellipse cx="0" cy="0" rx="${f1(r * k)}" ry="${f1(r)}"/>`).join('');
+    return shade(`<circle cx="0" cy="0" r="${f1(r)}"/>`, col, { dx: -r * 0.13, dy: -r * 0.11, dark: 0.16 })
+      + `<g fill="none" stroke="#000" stroke-opacity=".16" stroke-width="1">${meridians}<path d="M0 ${f1(-r)} V${f1(r)}"/></g>`
+      + `<ellipse cx="0" cy="0" rx="${f1(r * 0.53)}" ry="${f1(r)}" fill="none" stroke="#fff" stroke-opacity=".28"/>`
+      + hl(-r * 0.42, -r * 0.36, r * 0.13, r * 0.28, -30, 0.5)
+      + `<rect x="-2.5" y="${f1(-r - 3)}" width="5" height="4" rx="1" fill="${mix(col, -0.3)}"/>`;
+  }
+  const threadTo = (y) => `<path class="thread" d="M0 -6 V${f1(y)}" fill="none" stroke-width="1.2"/>`;
+  const sides = (c, fn) => [1, -1].map((side, si) => fn((dx) => (side === 1 ? dx : c.W - dx), si * 3, si)).join('');
+
+  function cornerHoneycomb(c) {
+    const sc = c.small ? 0.75 : 1;
+    return sides(c, (X, k) => {
+      const balls = (c.small ? [[26, 0.2, 17, 1], [70, 0.3, 13, 5]] : [[30, 0.24, 22, 1], [80, 0.36, 17, 5], [136, 0.2, 14, 2]])
+        .map(([dx, lf, r, ci], j) => {
+          const len = c.H * lf;
+          return dangle(c, X(dx * sc), len, 0.35 + j * 0.1, threadTo(len) + `<g transform="translate(0 ${f1(len + r)})">${honeyBall(r, RAINBOW[(ci + k) % 7])}</g>`);
+        }).join('');
+      const fans = [[112, 8, 34, 4, 2], [44, 18, 52, 0, 3]].map(([dx, cy, r, ci, bi], j) =>
+        `<g class="fall" style="${fallStyle(c, 0.1, 0.3)}"><g class="pop-in" style="--d:${dly(c, 0.15 + j * 0.12)}">${fan(X(dx * sc), cy * sc, r * sc, RAINBOW[(ci + k) % 7], RAINBOW[(bi + k) % 7])}</g></g>`).join('');
+      return balls + fans;
+    });
+  }
+
+  function pompom(c, r, col) {
+    const bumps = Array.from({ length: 17 }, (_, n) => {
+      const a = (n / 17) * 2 * Math.PI;
+      return `<circle cx="${f1(r * 0.78 * Math.cos(a))}" cy="${f1(r * 0.78 * Math.sin(a))}" r="${f1(r * 0.24)}"/>`;
+    }).join('') + `<circle cx="0" cy="0" r="${f1(r * 0.8)}"/>`;
+    // Tissue folds: little arcs that bulge outward, alternately lit and shaded
+    let lightFolds = '', darkFolds = '';
+    for (let n = 0; n < 26; n++) {
+      const a = c.rand(0, 2 * Math.PI), rho = r * Math.sqrt(c.rand(0.02, 0.85)), sz = r * c.rand(0.1, 0.16);
+      const px = rho * Math.cos(a), py = rho * Math.sin(a), tx = -Math.sin(a) * sz, ty = Math.cos(a) * sz;
+      const d = `M${f1(px - tx)} ${f1(py - ty)} Q${f1(px + Math.cos(a) * sz)} ${f1(py + Math.sin(a) * sz)} ${f1(px + tx)} ${f1(py + ty)}`;
+      if (n % 2) lightFolds += d; else darkFolds += d;
+    }
+    return shade(bumps, col, { dx: -r * 0.14, dy: -r * 0.12, dark: 0.15 })
+      + `<path d="${darkFolds}" fill="none" stroke="#000" stroke-opacity=".2" stroke-width="1.1" stroke-linecap="round"/>`
+      + `<path d="${lightFolds}" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="1.1" stroke-linecap="round"/>`;
+  }
+  function cornerPompom(c) {
+    const items = c.small ? [[20, 0.22, 16], [50, 0.1, 12], [78, 0.3, 13]] : [[26, 0.32, 22], [64, 0.16, 17], [102, 0.4, 20], [142, 0.22, 14]];
+    return sides(c, (X, k) => items.map(([dx, lf, r], j) => {
+      const len = c.H * lf;
+      return dangle(c, X(dx), len, 0.25 + j * 0.1, threadTo(len) + `<g transform="translate(0 ${f1(len + r * 0.95)})">${pompom(c, r, mix(RAINBOW[(j * 2 + k) % 7], 0.12))}</g>`);
+    }).join(''));
+  }
+
+  function cornerCurtain(c) {
+    const perSide = c.small ? 3 : 5;
+    return sides(c, (X, k, si) => {
+      let out = '', dx = 14;
+      for (let i = 0; i < perSide; i++) {
+        const len = c.H * c.rand(0.26, 0.56) * (1 - i * 0.06), ci = (i * 2 + si) % 7, x = X(dx), d0 = 0.25 + i * 0.09;
+        const glow = glowDef(c, `led${ci}`, GLOW[ci], 1);
+        const wx = (y) => x + 2.5 * Math.sin(y / 38 + i);
+        const wire = toPath(Array.from({ length: Math.ceil((len + 6) / 4) + 1 }, (_, n) => [wx(-6 + n * 4), -6 + n * 4]));
+        let leds = '';
+        for (let y = 10; y <= len; y += 16) {
+          leds += `<g transform="translate(${f1(wx(y))} ${y})"><circle r="2" fill="${mix(RAINBOW[ci], -0.45)}"/>`
+            + lit(c, d0 + (y / len) * 0.9, c.rand(0, 0.35), `<circle class="drip" style="--twd:${f2((y / len) * 1.3 - 2.6)}s" r="10" fill="${glow}"/><circle r="2.2" fill="${mix(GLOW[ci], 0.6)}"/>`) + '</g>';
+        }
+        out += `<g class="fall" style="${fallStyle(c, 0.45, 0.7)}"><g class="csway gentle" style="--sd:${f2(-c.rand(0, 3.4))}s"><path class="draw wire" pathLength="1" style="--d:${dly(c, d0)}" d="${wire}" fill="none" stroke-width="1"/>${leds}</g></g>`;
+        dx += c.rand(22, 30);
+      }
+      return out;
+    });
+  }
+
+  function cornerNeon(c) {
+    return curlSpecs(c).map((s) => {
+      const d = toPath(curlPoints(s, 0.5)), g = GLOW[s.ci];
+      const tube = (stroke, w, op) => `<path class="draw" pathLength="1" style="--d:${dly(c, s.delay)}" d="${d}" fill="none" stroke="${stroke}" stroke-width="${f1(w)}" stroke-opacity="${op}" stroke-linecap="round" stroke-linejoin="round"/>`;
+      return curlGroup(c, s, lit(c, s.delay + 0.9, c.rand(0, 0.3), tube(g, s.width + 10, 0.1) + tube(g, s.width + 4.5, 0.24) + tube(g, s.width * 0.8, 1) + tube('#fff', s.width * 0.26, 0.8), 'lit neon'));
+    }).join('');
+  }
+
+  /** Folded paper star: each point has a lit and a shaded facet */
+  function foldedStar(R, base) {
+    const P = (k, rr) => { const a = ((-90 + k * 36) * Math.PI) / 180; return `${f1(rr * Math.cos(a))} ${f1(rr * Math.sin(a))}`; };
+    let lightFacets = '', darkFacets = '';
+    for (let k = 0; k < 10; k += 2) {
+      lightFacets += `M0 0L${P(k - 1, R * 0.46)}L${P(k, R)}Z`;
+      darkFacets += `M0 0L${P(k, R)}L${P(k + 1, R * 0.46)}Z`;
+    }
+    return `<path d="${starPath(0, 0, R, R * 0.46)}" fill="${base}" stroke="${base}" stroke-width="${f1(R * 0.18)}" stroke-linejoin="round"/>`
+      + `<path d="${lightFacets}" fill="${mix(base, 0.42)}"/><path d="${darkFacets}" fill="${mix(base, -0.18)}"/>`;
+  }
+  function sleepyMoon(R) {
+    const m = uid('m'), r = (k) => f1(R * k);
+    const body = `<circle r="${R}" fill="#ffe08a"/><circle r="${R}" fill="#000" opacity=".12"/><circle cx="${r(-0.08)}" cy="${r(-0.07)}" r="${R}" fill="#ffe08a"/>`
+      + `<circle cx="${r(-0.55)}" cy="${r(0.5)}" r="${r(0.1)}" fill="#000" opacity=".07"/><circle cx="${r(-0.75)}" cy="${r(0.1)}" r="${r(0.07)}" fill="#000" opacity=".07"/>`;
+    return `<mask id="${m}" maskUnits="userSpaceOnUse" x="${-R - 4}" y="${-R - 4}" width="${2 * R + 8}" height="${2 * R + 8}"><circle r="${R}" fill="#fff"/><circle cx="${r(0.5)}" cy="${r(-0.25)}" r="${r(0.78)}" fill="#000"/></mask>`
+      + `<g mask="url(#${m})">${body}</g>`
+      + hl(-R * 0.66, -R * 0.3, R * 0.07, R * 0.2, 20, 0.55)
+      + line(`M${r(-0.5)} ${r(-0.06)} Q${r(-0.4)} ${r(0.05)} ${r(-0.3)} ${r(-0.06)} l${r(0.04)} ${r(-0.06)}`, 2, INK)
+      + `<ellipse cx="${r(-0.52)}" cy="${r(0.2)}" rx="${r(0.11)}" ry="${r(0.065)}" fill="#ff6fa5" opacity=".5"/>`
+      + line(`M${r(-0.28)} ${r(0.36)} Q${r(-0.18)} ${r(0.44)} ${r(-0.08)} ${r(0.35)}`, 1.8, INK);
+  }
+  const SPARKLE = 'M0 -6 Q0.9 -0.9 6 0 Q0.9 0.9 0 6 Q-0.9 0.9 -6 0 Q-0.9 -0.9 0 -6 Z';
+  function cornerStars(c) {
+    const glow = glowDef(c, 'sglow', '#fff1a8', 0.55);
+    const layouts = [
+      [[20, 0.3, 'star', 12], [64, 0.12, 'moon', 28], [114, 0.26, 'star', 16], [154, 0.1, 'star', 11]],
+      [[22, 0.22, 'star', 17], [62, 0.38, 'star', 11], [104, 0.12, 'star', 15], [146, 0.3, 'star', 12]],
+    ];
+    return sides(c, (X, k, si) => {
+      // Phones keep two items per corner, closer to the edge, so they stay clear of the title
+      const k2 = c.small ? 0.8 : 1;
+      const items = layouts[si].slice(0, c.small ? 2 : 4).map(([dx0, lf, kind, size0], j) => {
+        const dx = dx0 * k2, size = size0 * k2, len = c.H * lf * k2, on = 0.6 + j * 0.15, off = c.rand(0, 0.3);
+        const art = kind === 'moon'
+          ? lit(c, on, off, `<circle ${twinkle(c, 'twinkle calm')} cx="0" cy="${f1(len + size)}" r="${f1(size * 2.4)}" fill="${glow}"/>`) + `<g transform="translate(0 ${f1(len + size)})">${sleepyMoon(size)}</g>`
+          : lit(c, on, off, `<circle ${twinkle(c)} cx="0" cy="${f1(len + size)}" r="${f1(size * 2.8)}" fill="${glow}"/>`) + `<g transform="translate(0 ${f1(len + size)})">${foldedStar(size, STAR_COLORS[(j + k) % STAR_COLORS.length])}</g>`;
+        return dangle(c, X(dx), len, 0.25 + j * 0.1, threadTo(len) + art);
+      }).join('');
+      const sparkles = Array.from({ length: c.small ? 3 : 5 }, () =>
+        `<g transform="translate(${f1(X(c.rand(10, c.small ? 80 : 170)))} ${f1(c.rand(30, c.H * 0.45))}) scale(${f2(c.rand(0.5, 1.1))})"><path class="blink" style="--tw:${f2(c.rand(2.2, 3.6))}s;--twd:${f2(-c.rand(0, 3.6))}s" d="${SPARKLE}" fill="#fff6c8"/></g>`).join('');
+      return `<g class="fall" style="${fallStyle(c, 0, 0.2)}">${sparkles}</g>` + items;
+    });
+  }
+
+  /* ---------- Options ---------- */
+  const SLOTS = [
+    { key: 'lightTop', mode: 'light', kind: 'top', label: 'Girlande oben' },
+    { key: 'lightCorner', mode: 'light', kind: 'corner', label: 'Ecken' },
+    { key: 'darkTop', mode: 'dark', kind: 'top', label: 'Girlande oben' },
+    { key: 'darkCorner', mode: 'dark', kind: 'corner', label: 'Ecken' },
+  ];
+  const NOW_CORNER = { id: 'now', name: 'Heute', info: 'Einfarbige Ringel-Linien in den oberen Ecken.', chips: ['Heute'], draw: cornerNow };
+  const OPTIONS = {
+    lightTop: [
+      { id: 'now', name: 'Heute', info: 'Flache Dreieckswimpel an einer gedrehten Krepp-Schlange.', chips: ['Heute'], draw: topNow },
+      { id: 'fabric', name: 'Stoff-Wimpel', info: 'Wimpel mit Punkten, Streifen, Zickzack oder Stern-Aufnäher. Mit Naht, Saum über der Baumwollkordel und Faltschatten.', chips: ['Empfehlung', 'Muster'], draw: topFabric },
+      { id: 'round', name: 'Bogen-Wimpel', info: 'Abgerundete Fähnchen mit derselben Schattierung wie die Ballons, Tupfen und Zackenlitze. Dazwischen kleine Pompon-Perlen.', chips: ['Ballon-Look'], draw: topRound },
+      { id: 'tassel', name: 'Quasten-Girlande', info: 'Seidenpapier-Quasten mit goldenem Band an einer Goldkordel. Sie schwingen etwas weiter aus als Wimpel.', chips: ['Glanz'], draw: topTassel },
+    ],
+    lightCorner: [
+      NOW_CORNER,
+      { id: 'curl3d', name: 'Ringel 3D', info: 'Echte Spiralen: Vorderseite hell mit Glanzkante, Innenseite dunkler. Rollen sich wie heute ab.', chips: ['Empfehlung', 'Tiefe'], draw: cornerCurl3d },
+      { id: 'honeycomb', name: 'Fächer & Wabenbälle', info: 'Papierfächer in den Ecken drehen sich beim Start auf, darunter Wabenbälle an Fäden.', chips: ['Papier'], draw: cornerHoneycomb },
+      { id: 'pompom', name: 'Pompons', info: 'Seidenpapier-Pompons in Regenbogenfarben, unterschiedlich tief gehängt.', chips: ['Weich'], draw: cornerPompom },
+    ],
+    darkTop: [
+      { id: 'now', name: 'Heute', info: 'Die Wimpel aus dem Hell-Modus auf dunklem Grund.', chips: ['Heute'], draw: topNow },
+      { id: 'fairy', name: 'Bunte Lichterkette', info: 'Spitze Birnen in Regenbogenfarben an grünem Kabel. Gehen nacheinander an und funkeln.', chips: ['Empfehlung', 'Funkelt'], draw: topFairy },
+      { id: 'festoon', name: 'Glühbirnen-Girlande', info: 'Große Kugelbirnen mit Glühfaden und leicht getöntem Glas. Ruhiges, warmes Licht.', chips: ['Warm'], draw: topFestoon },
+      { id: 'lantern', name: 'Lampions', info: 'Runde Papierlampions mit Rippen und Quaste, von innen beleuchtet.', chips: ['Leuchtet'], draw: topLantern },
+    ],
+    darkCorner: [
+      { ...NOW_CORNER, info: 'Die Ringel aus dem Hell-Modus auf dunklem Grund.' },
+      { id: 'curtain', name: 'Lichtervorhang', info: 'Feine Lichterstränge statt Luftschlangen. Ein Schimmer läuft an jedem Strang nach unten.', chips: ['Empfehlung', 'Funkelt'], draw: cornerCurtain },
+      { id: 'neon', name: 'Neon-Ringel', info: 'Die Luftschlangen als leuchtende Neonröhren. Flackern beim Einschalten kurz auf.', chips: ['Leuchtet'], draw: cornerNeon },
+      { id: 'stars', name: 'Mond & Sterne', info: 'Ein schlafender Mond und gefaltete Leuchtsterne an Fäden, dazwischen blitzende Funken.', chips: ['Ballon-Look'], draw: cornerStars },
+    ],
+  };
+  const DEFAULTS = { lightTop: 'fabric', lightCorner: 'curl3d', darkTop: 'fairy', darkCorner: 'curtain' };
+  const STORE_KEY = 'rt-deco-mockup';
+  const state = { ...DEFAULTS, mode: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' };
+  try { Object.assign(state, JSON.parse(localStorage.getItem(STORE_KEY) || '{}')); } catch { /* storage unavailable */ }
+  const save = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch { /* storage unavailable */ } };
+  const option = (key) => OPTIONS[key].find((o) => o.id === state[key]) ?? OPTIONS[key][1];
+
+  /* ---------- Stage: title, dial and balloons like the app ---------- */
+  const TITLE_COLORS = { light: [...RAINBOW], dark: ['#e81416', '#ffa500', '#faeb36', '#79c314', '#487de7', '#7b62d6', '#a35bd6'] };
+  const LABEL_COLORS = { light: ['#e81416', '#e08e00', '#c9a800', '#5f9c0f', '#487de7', '#4b369d', '#70369d'], dark: ['#ff5a5c', '#ffa500', '#faeb36', '#8fd62a', '#6f9cf0', '#9d8cf0', '#c084ee'] };
+  const titleMarkup = (mode) => {
+    const cols = TITLE_COLORS[mode];
+    return `<span class="st-word">${[...'Rainbow'].map((ch, i) => `<span style="color:${cols[i]}">${ch}</span>`).join('')}</span>`
+      + `<span class="st-word st-party">${[...'Party'].map((ch, i) => `<span style="color:${cols[[0, 1, 3, 4, 6][i]]}">${ch}</span>`).join('')}</span>`;
+  };
+
+  function dialMarkup(d, mode) {
+    const m = d * 0.16, size = d + 2 * m, c = size / 2, r = d / 2;
+    let minor = '', major = '', labels = '';
+    for (let i = 0; i < 60; i++) {
+      const a = (i * 6 * Math.PI) / 180, r1 = r * 0.95, r0 = r1 - (i % 5 ? r * 0.035 : r * 0.075);
+      const seg = `M${f1(c + r0 * Math.sin(a))} ${f1(c - r0 * Math.cos(a))}L${f1(c + r1 * Math.sin(a))} ${f1(c - r1 * Math.cos(a))}`;
+      if (i % 5) minor += seg; else major += seg;
+    }
+    for (let k = 1; k <= 12; k++) {
+      const a = (k * 30 * Math.PI) / 180, rr = r + m * 0.55;
+      labels += `<text x="${f1(c + rr * Math.sin(a))}" y="${f1(c - rr * Math.cos(a))}" fill="${LABEL_COLORS[mode][k % 7]}">${k * 5}</text>`;
+    }
+    return `<svg class="st-dial" width="${f1(size)}" height="${f1(size)}" viewBox="0 0 ${f1(size)} ${f1(size)}" aria-hidden="true">`
+      + `<circle class="dial-face" cx="${f1(c)}" cy="${f1(c)}" r="${f1(r)}"/><path class="dial-tick" d="${minor}" stroke-width="1.2" stroke-linecap="round" opacity=".7"/><path class="dial-tick" d="${major}" stroke-width="2.4" stroke-linecap="round"/>`
+      + `<circle class="dial-hub" cx="${f1(c)}" cy="${f1(c)}" r="${f1(r * 0.34)}"/>${labels}</svg>`;
+  }
+
+  const BALLOON = 'M50 4 C82 4 96 30 96 58 C96 90 70 110 53 113 L47 113 C30 110 4 90 4 58 C4 30 18 4 50 4 Z';
+  const HEART = 'M50 108 C22 88 4 68 4 42 C4 21 18 8 34 8 C43 8 48 13 50 21 C52 13 57 8 66 8 C82 8 96 21 96 42 C96 68 78 88 50 108 Z';
+  const eye = (x, y, rx = 4.5, ry = rx * 1.3) => `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${f1(ry)}" fill="${INK}"/><circle cx="${f1(x + rx * 0.35)}" cy="${f1(y - ry * 0.4)}" r="${f1(rx * 0.38)}" fill="#fff"/>`;
+  const eyes = (x1, x2, y) => eye(x1, y) + eye(x2, y);
+  const blush = (x1, x2, y, op = 0.5) => `<g fill="#ff6fa5" opacity="${op}"><ellipse cx="${x1}" cy="${y}" rx="6" ry="3.5"/><ellipse cx="${x2}" cy="${y}" rx="6" ry="3.5"/></g>`;
+  const knot = (col, y) => `<path d="M44 ${y + 7} L50 ${y - 2} L56 ${y + 7} Z" fill="${col}"/>`;
+  const valve = (col, y) => `<rect x="47" y="${y - 3}" width="6" height="9" rx="2" fill="${col}"/><rect x="47" y="${y - 3}" width="6" height="9" rx="2" fill="#000" opacity=".2"/>`;
+  const stringPath = (top) => { const y = (dy) => f1(top + ((300 - top) * dy) / 182); return `M50 ${top} C 40 ${y(32)}, 62 ${y(62)}, 48 ${y(97)} S 56 ${y(152)}, 50 300`; };
+  function roundPoly(pts, t) {
+    const lerp = (a, b, f) => `${f1(a[0] + (b[0] - a[0]) * f)} ${f1(a[1] + (b[1] - a[1]) * f)}`;
+    return pts.map((p, i) => `${i ? 'L' : 'M'}${lerp(p, pts[(i - 1 + pts.length) % pts.length], t[i % 2])} Q${f1(p[0])} ${f1(p[1])} ${lerp(p, pts[(i + 1) % pts.length], t[i % 2])}`).join(' ') + ' Z';
+  }
+  const STAR_PTS = Array.from({ length: 10 }, (_, k) => { const a = ((-90 + k * 36) * Math.PI) / 180, r = k % 2 ? 23 : 48; return [50 + r * Math.cos(a), 62 + r * Math.sin(a)]; });
+  const STAR_CREASES = STAR_PTS.filter((_, k) => k % 2 === 0).map(([x, y]) => `M50 62 L${f1(50 + (x - 50) * 0.78)} ${f1(62 + (y - 62) * 0.78)}`).join(' ');
+  const STAGE_BALLOONS = [
+    { color: '#ffa500', top: 118, body: (col) => `<path d="${BALLOON}" fill="${col}"/><path d="M50 4 C82 4 96 30 96 58 C96 90 70 110 53 113 C78 96 88 70 84 44 C80 22 68 8 50 4 Z" fill="#000" opacity=".14"/>${hl(31, 34, 8, 16, -24)}${knot(col, 113)}` },
+    { color: '#487de7', top: 113, body: (col) => shade(`<path d="${HEART}"/>`, col) + hl(25, 30, 7, 13, -35) + eyes(38, 62, 50) + blush(28, 72, 61, 0.55) + line('M44 61 Q50 67 56 61', 2.4) + valve(col, 108) },
+    { color: '#faeb36', top: 91, body: (col) => shade(`<path d="${roundPoly(STAR_PTS, [0.2, 0.12])}"/>`, col) + line(STAR_CREASES, 1.5, '#fff', 0.22) + hl(46, 34, 3, 7, -15) + valve(col, 86) },
+    { color: '#79c314', top: 111, body: (col) => shade('<circle cx="18" cy="32" r="14"/><circle cx="82" cy="32" r="14"/><circle cx="50" cy="66" r="40"/>', col) + '<g fill="#fff" opacity=".35"><circle cx="18" cy="32" r="7"/><circle cx="82" cy="32" r="7"/></g>' + hl(29, 44, 6, 10, -35) + '<ellipse cx="50" cy="82" rx="18" ry="13" fill="#fff" opacity=".5"/>' + eyes(35, 65, 61) + blush(26, 74, 73) + `<ellipse cx="50" cy="77" rx="6" ry="4.5" fill="${INK}"/>` + line('M50 81.5 V86 M44 87 Q50 92 56 87', 2) + knot(col, 106) },
+  ];
+  function balloonsMarkup(W, H, animate) {
+    const small = W < 600, w = small ? 50 : 68, base = animate ? 0 : -5;
+    const spots = small ? [[-0.02, 0.76], [0.17, 0.83], [0.8, 0.78]] : [[0.03, 0.47], [0.1, 0.6], [0.83, 0.55], [0.9, 0.44]];
+    return spots.map(([fx, fy], i) => {
+      const b = STAGE_BALLOONS[small && i === 2 ? 3 : i];
+      return `<div class="bb" style="--x:${f1(fx * W)}px;--y:${f1(fy * H)}px;--w:${w}px;--d:${f2(base + 0.2 + i * 0.09)}s;--tilt:${(i % 2 ? 1 : -1) * 14}deg;--pop:${f2(0.06 + i * 0.09)}s">`
+        + `<div class="bob" style="--sd:${f2(-i * 0.7)}s;--bob:${f2(3 + i * 0.25)}s"><svg viewBox="0 0 100 300" aria-hidden="true">`
+        + `<path class="bstr thread" d="${stringPath(b.top)}" fill="none" stroke-width="1.6"/><g class="body">${b.body(b.color)}</g></svg></div></div>`;
+    }).join('');
+  }
+
+  const stage = document.getElementById('stage');
+  const toggle = document.getElementById('party-toggle');
+  let partyOn = true;
+  let exitTimer;
+  let lastWidth = 0;
+
+  function buildStage({ animateDeco = false, animateBalloons = false } = {}) {
+    clearTimeout(exitTimer);
+    partyOn = true;
+    toggle.textContent = 'Party beenden';
+    const W = stage.clientWidth, small = W < 600;
+    const H = small ? Math.round(Math.min(W * 1.75, 700)) : Math.round(W * 0.58);
+    lastWidth = W;
+    stage.style.height = `${H}px`;
+    stage.style.setProperty('--h', `${H}px`);
+    stage.dataset.mode = state.mode;
+    stage.classList.remove('is-exiting');
+
+    const d = Math.round(small ? Math.min(W * 0.76, H * 0.5) : H * 0.46), fs = small ? 34 : 46, size = d * 1.32;
+    // Title above the dial; on phones it sits below the garland, as in the app
+    const titleTop = small ? 92 : Math.max(4, H * 0.53 - d / 2 - d * 0.16 - 14 - fs * 1.85);
+    const cy = small ? titleTop + fs * 1.85 + 10 + d * 0.16 + d / 2 : H * 0.53;
+    stage.innerHTML = `<div style="position:absolute;left:${f1(W / 2 - size / 2)}px;top:${f1(cy - size / 2)}px">${dialMarkup(d, state.mode)}</div>`
+      + `<div class="st-title" style="top:${f1(titleTop)}px;font-size:${fs}px">${titleMarkup(state.mode)}</div>`;
+    const sr = stage.getBoundingClientRect(), tr = stage.querySelector('.st-title .st-word').getBoundingClientRect();
+    const avoid = { left: tr.left - sr.left, right: tr.right - sr.left, top: tr.top - sr.top };
+
+    const c = makeCtx(W, H, 7, { settled: !animateDeco, avoid });
+    const mode = state.mode === 'dark' ? 'dark' : 'light';
+    const corner = option(`${mode}Corner`).draw(c), top = option(`${mode}Top`).draw(c);
+    stage.insertAdjacentHTML('beforeend', `<svg class="deco" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true"><defs>${c.defsMarkup()}</defs>${corner}${top}</svg>` + balloonsMarkup(W, H, animateBalloons));
+  }
+
+  function endParty() {
+    partyOn = false;
+    toggle.textContent = 'Party starten';
+    stage.classList.add('is-exiting');
+    exitTimer = setTimeout(() => stage.querySelectorAll('.deco, .bb').forEach((el) => el.remove()), 2400);
+  }
+  toggle.addEventListener('click', () => (partyOn ? endParty() : buildStage({ animateDeco: true, animateBalloons: true })));
+
+  /* ---------- Cards ---------- */
+  function artMarkup(slot, opt, seed) {
+    const top = slot.kind === 'top';
+    const c = makeCtx(top ? 840 : 560, top ? 150 : 300, seed, { small: false });
+    const body = opt.draw(c);
+    return `<svg viewBox="0 0 ${top ? '440 140' : '220 210'}" aria-hidden="true"><defs>${c.defsMarkup()}</defs>${body}</svg>`;
+  }
+  for (const slot of SLOTS) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `<h3 id="h-${slot.key}">${slot.label}</h3><div class="grid ${slot.kind}" role="radiogroup" aria-labelledby="h-${slot.key}"></div>`;
+    const grid = row.querySelector('.grid');
+    OPTIONS[slot.key].forEach((opt, n) => {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'opt';
+      card.setAttribute('role', 'radio');
+      card.dataset.slot = slot.key;
+      card.dataset.id = opt.id;
+      card.innerHTML = `<span class="art" data-mode="${slot.mode}">${artMarkup(slot, opt, 11 + n)}</span>`
+        + `<span class="opt-label"><span class="opt-name">${opt.name}</span><span class="opt-info">${opt.info}</span>`
+        + `<span class="chips">${opt.chips.map((ch) => `<span class="chip${ch === 'Empfehlung' ? ' rec' : ''}">${ch}</span>`).join('')}</span></span><span class="radio" aria-hidden="true"></span>`;
+      card.addEventListener('click', () => {
+        state[slot.key] = opt.id;
+        state.mode = slot.mode;
+        save();
+        refresh();
+        buildStage({ animateDeco: true });
+      });
+      grid.append(card);
+    });
+    document.getElementById(slot.mode).append(row);
+  }
+
+  const modeButtons = { light: document.getElementById('mode-light'), dark: document.getElementById('mode-dark') };
+  for (const [mode, btn] of Object.entries(modeButtons)) {
+    btn.addEventListener('click', () => {
+      if (state.mode === mode && partyOn) return;
+      state.mode = mode;
+      save();
+      refresh();
+      buildStage({ animateDeco: true });
+    });
+  }
+
+  const summary = (mode) => `${option(`${mode}Top`).name} + ${option(`${mode}Corner`).name}`;
+  function refresh() {
+    document.querySelectorAll('.opt').forEach((card) => card.setAttribute('aria-checked', String(state[card.dataset.slot] === card.dataset.id)));
+    for (const [mode, btn] of Object.entries(modeButtons)) btn.setAttribute('aria-pressed', String(state.mode === mode));
+    const mode = state.mode === 'dark' ? 'dark' : 'light';
+    document.getElementById('stage-sum').innerHTML = `${mode === 'dark' ? 'Dunkel' : 'Hell'}: <b>${summary(mode)}</b>`;
+    document.getElementById('picked-text').innerHTML = `Deine Auswahl. Hell: <b>${summary('light')}</b> · Dunkel: <b>${summary('dark')}</b>`;
+  }
+
+  document.getElementById('copy').addEventListener('click', (e) => {
+    const text = `Deko-Auswahl – Hell: ${summary('light')} · Dunkel: ${summary('dark')}`;
+    const btn = e.currentTarget;
+    const done = () => { btn.textContent = 'Kopiert'; setTimeout(() => { btn.textContent = 'Auswahl kopieren'; }, 1600); };
+    navigator.clipboard?.writeText(text).then(done, () => window.getSelection()?.selectAllChildren(document.getElementById('picked-text')));
+  });
+  document.getElementById('reset').addEventListener('click', () => {
+    Object.assign(state, DEFAULTS);
+    save();
+    refresh();
+    buildStage({ animateDeco: true });
+  });
+
+  refresh();
+  buildStage({ animateDeco: true, animateBalloons: true });
+  // Geometry is in pixels: rebuild the settled scene when the stage width changes
+  let resizeTimer;
+  new ResizeObserver(() => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if (partyOn && stage.clientWidth !== lastWidth) buildStage(); }, 200);
+  }).observe(stage);
+  document.fonts?.ready.then(() => { if (partyOn) buildStage(); });
+</script>
