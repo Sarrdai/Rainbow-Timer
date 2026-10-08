@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Rainbow Timer Erststart-Hinweis</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;700;800&display=swap">
+<style>
+  /* Layout: interaktive Bühne (Dial + Variantenwahl) oben, darunter Erklärung, Regeln und Umsetzung. */
+  :root {
+    --bg: hsl(300 65% 92%);
+    --surface: hsl(0 0% 100% / 0.72);
+    --surface-active: #ffffff;
+    --ink: hsl(271 47% 25%);
+    --ink-soft: hsl(268 38% 47%);
+    --line: hsl(300 30% 82%);
+    --focus: #4b369d;
+    --ring-0: #70369d; --ring-1: #4b369d; --ring-2: #487de7; --ring-3: #79c314;
+    --ring-4: #faeb36; --ring-5: #ffa500; --ring-6: #e81416;
+    --label-0: #e81416; --label-1: #ffa500; --label-2: #faeb36; --label-3: #8fd62a;
+    --label-4: #487de7; --label-5: #4b369d; --label-6: #70369d;
+    --dial-face: #fff7ff; --dial-ink: #4b369d; --hub: #fff; --hub-text: #4b369d; --hub-subtle: #8a63b3;
+    --knob-fill: #fff; --knob-stroke: #4b369d; --dial-shadow: rgba(75,54,157,.22);
+    --hint: #d63384;
+    --font-ui: "Nunito", "Segoe UI", system-ui, sans-serif;
+    --font-head: "Fredoka", var(--font-ui);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: hsl(249 40% 12%); --surface: hsl(249 35% 17%); --surface-active: hsl(249 32% 24%);
+      --ink: hsl(253 100% 94%); --ink-soft: hsl(255 63% 79%); --line: hsl(249 25% 28%); --focus: #c9b8ff;
+      --ring-0: #a35bd6; --ring-1: #7b62d6;
+      --label-1: #ffa500; --label-3: #8fd62a; --label-4: #6f9cf0; --label-5: #9d8cf0; --label-6: #c084ee;
+      --dial-face: #221c3d; --dial-ink: #b9a8ea; --hub: #2d2650; --hub-text: #fff; --hub-subtle: #b9a8ea;
+      --knob-fill: #2d2650; --knob-stroke: #e9e2ff; --dial-shadow: rgba(0,0,0,.45);
+      --hint: #ff6fb5;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: hsl(249 40% 12%); --surface: hsl(249 35% 17%); --surface-active: hsl(249 32% 24%);
+    --ink: hsl(253 100% 94%); --ink-soft: hsl(255 63% 79%); --line: hsl(249 25% 28%); --focus: #c9b8ff;
+    --ring-0: #a35bd6; --ring-1: #7b62d6;
+    --label-1: #ffa500; --label-3: #8fd62a; --label-4: #6f9cf0; --label-5: #9d8cf0; --label-6: #c084ee;
+    --dial-face: #221c3d; --dial-ink: #b9a8ea; --hub: #2d2650; --hub-text: #fff; --hub-subtle: #b9a8ea;
+    --knob-fill: #2d2650; --knob-stroke: #e9e2ff; --dial-shadow: rgba(0,0,0,.45);
+    --hint: #ff6fb5;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 500 15px/1.5 var(--font-ui); }
+  .page { max-width: 1080px; margin: 0 auto; padding: 24px 16px 64px; display: grid; gap: 40px; }
+  header { display: grid; gap: 4px; }
+  header p { margin: 0; color: var(--ink-soft); max-width: 66ch; }
+  h1 { margin: 0; font-size: 1.05rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+  h2 { margin: 0; font-size: 1.25rem; font-weight: 800; text-wrap: balance; }
+  h3 { margin: 0; font-size: 1rem; font-weight: 800; }
+  section { display: grid; gap: 14px; }
+  section > p { margin: 0; color: var(--ink-soft); max-width: 68ch; }
+
+  .stage { display: grid; justify-items: center; gap: 18px; padding: 24px 16px 20px; border-radius: 28px; background: var(--surface); border: 1px solid var(--line); }
+  .variants { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .variants button, .btn { all: unset; cursor: pointer; padding: 8px 16px; border-radius: 999px; font-weight: 800; font-size: .9rem; color: var(--ink-soft); background: var(--bg); border: 1px solid var(--line); }
+  .variants button[aria-pressed="true"] { background: var(--surface-active); color: var(--ink); border-color: var(--focus); }
+  .variants button:focus-visible, .btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .variants small { display: block; font-weight: 600; font-size: .72rem; opacity: .85; }
+  .tag { font-size: .7rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--hint); }
+
+  /* Dial */
+  .dial-wrap { position: relative; width: min(100%, 400px); aspect-ratio: 1; touch-action: none; user-select: none; }
+  .dial-wrap svg { width: 100%; height: 100%; overflow: visible; display: block; cursor: grab; }
+  .dial-wrap.dragging svg { cursor: grabbing; }
+  .caption { min-height: 1.6em; margin: 0; font-size: .95rem; font-weight: 700; color: var(--ink-soft); text-align: center; transition: opacity .25s; }
+  .caption.hint { color: var(--hint); }
+
+  /* Hinweis-Animationen: alles zeigt im Uhrzeigersinn von 12 Uhr aus nach rechts */
+  .sweep   { animation: sweep 3.2s cubic-bezier(.45,0,.35,1) infinite; }
+  .ghostrot{ transform-origin: 160px 160px; animation: rot 3.2s cubic-bezier(.45,0,.35,1) infinite; }
+  .ripple  { transform-box: fill-box; transform-origin: center; animation: ripple 1.8s ease-out infinite; }
+  .breathe { transform-box: fill-box; transform-origin: center; animation: breathe 1.8s ease-in-out infinite; }
+  .wave    { transform-box: fill-box; transform-origin: center; animation: wave 3.6s ease-in-out infinite; }
+  .hubfade { animation: hubfade 3.2s ease-in-out infinite; }
+  @keyframes sweep   { 0%,8% { stroke-dasharray: 0 100; opacity: 0; } 15% { opacity: .5; } 60%,80% { stroke-dasharray: 25 100; opacity: .5; } 100% { stroke-dasharray: 25 100; opacity: 0; } }
+  @keyframes rot     { 0%,8% { transform: rotate(0deg); opacity: 0; } 15% { opacity: 1; } 60%,80% { transform: rotate(90deg); opacity: 1; } 100% { transform: rotate(90deg); opacity: 0; } }
+  @keyframes ripple  { 0% { transform: scale(.9); opacity: .55; } 100% { transform: scale(2.6); opacity: 0; } }
+  @keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.14); } }
+  @keyframes wave    { 0%,30%,100% { transform: scale(1); } 12% { transform: scale(1.45); } }
+  @keyframes hubfade { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+  @media (prefers-reduced-motion: reduce) {
+    .sweep, .ghostrot, .ripple, .breathe, .wave, .hubfade { animation: none; }
+    .sweep { stroke-dasharray: 25 100; opacity: .4; }
+    .ghostrot { transform: rotate(90deg); }
+    .ripple { opacity: .35; transform: scale(1.8); }
+  }
+
+  /* Coach-Karte (Variante C) */
+  .coach { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 54%; padding: 10px 12px; border-radius: 16px; background: var(--surface-active); border: 2px solid var(--hint); box-shadow: 0 8px 24px rgba(75,54,157,.2); font-size: clamp(11px, 3vw, 13px); line-height: 1.35; pointer-events: none; display: none; }
+  .coach ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 5px; counter-reset: s; }
+  .coach li { counter-increment: s; display: flex; gap: 7px; align-items: flex-start; font-weight: 700; }
+  .coach li::before { content: counter(s); flex: none; width: 18px; height: 18px; border-radius: 50%; background: var(--hint); color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; margin-top: 1px; }
+  .coach b { color: var(--hint); }
+
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+  .card { padding: 16px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); display: grid; gap: 6px; align-content: start; }
+  .card p, .card ul { margin: 0; color: var(--ink-soft); font-size: .92rem; }
+  .card ul { padding-left: 1.1em; display: grid; gap: 3px; }
+  code { font: 600 .85em ui-monospace, monospace; background: var(--bg); padding: 1px 5px; border-radius: 6px; color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>Rainbow Timer · Mockup</h1>
+    <h2>Erststart: Wie zieht man den Timer auf?</h2>
+    <p>Heute zeigt der Timer beim ersten Öffnen nur ein leeres Zifferblatt. Nichts verrät, dass man den Rand ziehen oder eine Zahl antippen kann. Der Vorschlag: ein Hinweis, der die Geste vormacht und verschwindet, sobald sie verstanden wurde. Der Dial unten ist bedienbar. Variante wählen, dann ziehen oder eine Zahl antippen.</p>
+  </header>
+
+  <section>
+    <div class="stage">
+      <div class="variants" role="group" aria-label="Variante">
+        <button type="button" data-v="today" aria-pressed="false">Heute<small>kein Hinweis</small></button>
+        <button type="button" data-v="a" aria-pressed="true">A · Geister-Knopf<small>Empfehlung</small></button>
+        <button type="button" data-v="b" aria-pressed="false">B · Zahlen-Welle<small>dezenter</small></button>
+        <button type="button" data-v="c" aria-pressed="false">C · Kurzanleitung<small>explizit</small></button>
+      </div>
+      <div class="dial-wrap" id="wrap">
+        <svg id="svg" viewBox="0 0 320 320" role="img" aria-label="Beispiel-Dial"></svg>
+        <div class="coach" id="coach">
+          <ol>
+            <li><span><b>Ziehen:</b> Knopf im Uhrzeigersinn drehen</span></li>
+            <li><span><b>Loslassen:</b> der Timer startet</span></li>
+            <li><span><b>Mitte tippen:</b> Pause</span></li>
+          </ol>
+        </div>
+      </div>
+      <p class="caption" id="caption" aria-live="polite"></p>
+      <button type="button" class="btn" id="reset">Als neuer Nutzer neu starten</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Die drei Varianten</h2>
+    <div class="grid">
+      <div class="card">
+        <span class="tag">Empfehlung</span>
+        <h3>A · Geister-Knopf</h3>
+        <p>Am 12-Uhr-Punkt pulsiert ein Knopf. Ein blasser Regenbogenbogen läuft einmal im Uhrzeigersinn ein Stück aus und setzt wieder zurück. Das zeigt Startpunkt, Richtung und Ergebnis zugleich. Im Hub steht „Drag", darunter die Caption „Drag the dot clockwise or tap a number".</p>
+      </div>
+      <div class="card">
+        <span class="tag">Alternative</span>
+        <h3>B · Zahlen-Welle</h3>
+        <p>Die Zahlen 5 bis 60 wachsen nacheinander kurz an, im Uhrzeigersinn. Das lockt zum Antippen und zeigt die Reihenfolge. Es erklärt aber nicht, dass man auch ziehen kann. Passt, wenn der Timer ruhig wirken soll.</p>
+      </div>
+      <div class="card">
+        <span class="tag">Alternative</span>
+        <h3>C · Kurzanleitung</h3>
+        <p>Eine kleine Karte im Hub erklärt in drei Zeilen Ziehen, Loslassen und Pause. Am eindeutigsten, aber am meisten Text. Sie verdeckt den Hub und eignet sich eher für ein einmaliges „Tour"-Overlay.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Wann der Hinweis erscheint und verschwindet</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Anzeigen</h3>
+        <ul>
+          <li>Nur im Leerlauf: Winkel 0, kein Timer läuft, nicht pausiert.</li>
+          <li>Erst nach ca. 1,5 s ohne Eingabe, damit er Eilige nicht stört.</li>
+          <li>Nur solange <code>rainbowTimerHintSeen</code> in localStorage fehlt.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Ausblenden</h3>
+        <ul>
+          <li>Sofort beim ersten Berühren des Dials (Fade, 200 ms).</li>
+          <li>Der Merker wird erst gesetzt, wenn ein Timer wirklich gestartet wurde. Wer abbricht, sieht den Hinweis noch einmal.</li>
+          <li>Danach nie wieder, Wiederkehrende bekommen ein ruhiges Zifferblatt.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Barrierefreiheit</h3>
+        <ul>
+          <li><code>prefers-reduced-motion</code>: statisches Geisterbild statt Animation.</li>
+          <li>Caption ist <code>aria-live</code>. Für Tastatur: „Use arrow keys, then wait to start".</li>
+          <li>Hinweisfarbe hat in Hell und Dunkel mindestens 3:1 Kontrast zum Zifferblatt.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Umsetzung im Code</h3>
+        <ul>
+          <li><code>Dial</code>: neue Prop <code>hint</code> (<code>'none' | 'ghost' | 'wave'</code>), rendert Geister-Knopf, Bogen und Pulse.</li>
+          <li><code>HubContent</code>: neues <code>{ kind: 'hint' }</code>.</li>
+          <li><code>rainbow-timer.tsx</code>: <code>caption</code> bekommt den Hinweistext, wenn <code>hint</code> aktiv ist.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const SIZE = 320, C = 160, DIAL_R = 120, OUTER = DIAL_R + .5, INNER = OUTER * .47, HUB_R = 40;
+  const BAND = (OUTER - INNER) / 7;
+  const RADII = Array.from({ length: 7 }, (_, i) => INNER + i * BAND + BAND / 2);
+  const NS = 'http://www.w3.org/2000/svg';
+  const pol = (r, a) => { const t = (a - 90) * Math.PI / 180; return { x: C + r * Math.cos(t), y: C + r * Math.sin(t) }; };
+  const KEY = 'rainbowTimerHintSeen';
+
+  const svg = document.getElementById('svg');
+  const wrap = document.getElementById('wrap');
+  const coach = document.getElementById('coach');
+  const captionEl = document.getElementById('caption');
+  const state = { variant: 'a', angle: 0, dragging: false, started: false, idleHint: true };
+
+  const el = (name, attrs = {}, html) => {
+    const e = document.createElementNS(NS, name);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (html != null) e.innerHTML = html;
+    return e;
+  };
+  const text = (s, x, y, size, fill, extra = {}) => {
+    const t = el('text', { x, y, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-weight': 700, 'font-size': size, style: `fill:${fill}`, ...extra });
+    t.textContent = s; return t;
+  };
+
+  const showHint = () => state.idleHint && !state.dragging && !state.started && state.angle < .5 && state.variant !== 'today';
+
+  function render() {
+    svg.textContent = '';
+    const hint = showHint();
+    const v = state.variant;
+
+    svg.appendChild(el('circle', { cx: C, cy: C, r: DIAL_R, style: 'fill:var(--dial-face)' }));
+    svg.appendChild(el('defs', {}, '<filter id="hs" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="2" stdDeviation="3" style="flood-color:var(--dial-shadow)"/></filter>'));
+
+    // Ticks
+    for (let i = 1; i <= 60; i++) {
+      if (i % 5 === 0) continue;
+      const a = pol(DIAL_R - 5, i * 6), b = pol(DIAL_R, i * 6);
+      svg.appendChild(el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: 'var(--dial-ink)', 'stroke-width': 1 }));
+    }
+    // Major ticks + labels (tap = quick set)
+    for (let i = 1; i <= 12; i++) {
+      const a = pol(DIAL_R - 8, i * 30), b = pol(DIAL_R, i * 30), l = pol(DIAL_R + 20, i * 30);
+      const g = el('g', { style: 'cursor:pointer', 'data-quick': i * 5 });
+      g.appendChild(el('circle', { cx: l.x, cy: l.y, r: 13, fill: 'transparent' }));
+      g.appendChild(el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: 'var(--dial-ink)', 'stroke-width': 2 }));
+      const t = text(i * 5, l.x, l.y, 14, `var(--label-${i % 7})`);
+      if (hint && v === 'b') { t.setAttribute('class', 'wave'); t.style.animationDelay = `${i * .14}s`; }
+      g.appendChild(t);
+      svg.appendChild(g);
+    }
+
+    // Rainbow arc (current value)
+    if (state.angle > 0) {
+      const g = el('g', { transform: `rotate(-90 ${C} ${C})`, style: 'pointer-events:none' });
+      RADII.forEach((r, i) => {
+        const circ = 2 * Math.PI * r;
+        g.appendChild(el('circle', { cx: C, cy: C, r, fill: 'none', style: `stroke:var(--ring-${i})`, 'stroke-width': BAND + .5, 'stroke-dasharray': `${circ * state.angle / 360} ${circ}` }));
+      });
+      svg.appendChild(g);
+    }
+
+    // Hint layer: ghost sweep + ghost knob (A) — rainbow preview along the real bands
+    if (hint && v === 'a') {
+      const g = el('g', { transform: `rotate(-90 ${C} ${C})`, style: 'pointer-events:none' });
+      RADII.forEach((r, i) => g.appendChild(el('circle', { cx: C, cy: C, r, fill: 'none', pathLength: 100, class: 'sweep', style: `stroke:var(--ring-${i})`, 'stroke-width': BAND + .5, 'stroke-dasharray': '0 100' })));
+      svg.appendChild(g);
+    }
+
+    // Knob
+    if (state.dragging || (state.angle > .5 && state.angle < 359.5)) {
+      const k = pol(DIAL_R, state.angle), r = state.dragging ? 11 : 8.5;
+      if (state.dragging) svg.appendChild(el('circle', { cx: k.x, cy: k.y, r: 15, style: 'fill:var(--knob-stroke)', opacity: .14 }));
+      svg.appendChild(el('circle', { cx: k.x, cy: k.y + 1.5, r: r + 1, style: 'fill:var(--dial-shadow)' }));
+      svg.appendChild(el('circle', { cx: k.x, cy: k.y, r, style: 'fill:var(--knob-fill);stroke:var(--knob-stroke)', 'stroke-width': state.dragging ? 3 : 2.5 }));
+    } else if (hint && (v === 'a' || v === 'c')) {
+      // Invitation knob at 12 o'clock
+      const k = pol(DIAL_R, 0);
+      svg.appendChild(el('circle', { cx: k.x, cy: k.y, r: 9, fill: 'none', class: 'ripple', style: 'stroke:var(--hint)', 'stroke-width': 2.5 }));
+      const kg = el('g', { class: 'breathe' });
+      kg.appendChild(el('circle', { cx: k.x, cy: k.y + 1.5, r: 9.5, style: 'fill:var(--dial-shadow)' }));
+      kg.appendChild(el('circle', { cx: k.x, cy: k.y, r: 8.5, style: 'fill:var(--knob-fill);stroke:var(--hint)', 'stroke-width': 3 }));
+      svg.appendChild(kg);
+      if (v === 'a') {
+        // Ghost knob + chevron sweeping clockwise
+        const gr = el('g', { class: 'ghostrot', style: 'pointer-events:none' });
+        gr.appendChild(el('circle', { cx: k.x, cy: k.y, r: 8.5, style: 'fill:var(--knob-fill);stroke:var(--hint)', 'stroke-width': 2.5, opacity: .85 }));
+        const c = pol(DIAL_R, 9);
+        gr.appendChild(el('path', { d: `M${c.x - 3} ${c.y - 5} L${c.x + 3} ${c.y} L${c.x - 3} ${c.y + 5}`, fill: 'none', style: 'stroke:var(--hint)', 'stroke-width': 3, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', transform: `rotate(9 ${c.x} ${c.y})` }));
+        svg.appendChild(gr);
+      }
+    }
+
+    // Hub
+    const hub = el('g', { style: 'pointer-events:none' });
+    hub.appendChild(el('circle', { cx: C, cy: C, r: HUB_R, filter: 'url(#hs)', style: 'fill:var(--hub)' }));
+    const mins = Math.round(state.angle / 360 * 60);
+    if (state.started) {
+      hub.appendChild(text(`${mins}:00`, C, C - 4, 18, 'var(--hub-text)'));
+      hub.appendChild(el('rect', { x: C - 5, y: C + 8, width: 3, height: 9, rx: 1, style: 'fill:var(--hub-subtle)' }));
+      hub.appendChild(el('rect', { x: C + 2, y: C + 8, width: 3, height: 9, rx: 1, style: 'fill:var(--hub-subtle)' }));
+    } else if (state.angle > 0 || state.dragging) {
+      hub.appendChild(text(mins, C, C - 5, 22, 'var(--hub-text)'));
+      hub.appendChild(text('min', C, C + 15, 11, 'var(--hub-subtle)'));
+    } else if (hint && v === 'a') {
+      const h = el('g', { class: 'hubfade' });
+      // Clockwise arrow, then label
+      // Clockwise arc from 300° over 12 o'clock to 150°, arrowhead at its end
+      const ac = { x: C, y: C - 8 }, ar = 11;
+      const pt = (deg) => ({ x: ac.x + ar * Math.sin(deg * Math.PI / 180), y: ac.y - ar * Math.cos(deg * Math.PI / 180) });
+      const s = pt(-60), t = pt(150);
+      h.appendChild(el('path', { d: `M${s.x} ${s.y} A${ar} ${ar} 0 1 1 ${t.x} ${t.y}`, fill: 'none', style: 'stroke:var(--hint)', 'stroke-width': 2.5, 'stroke-linecap': 'round' }));
+      // Tangent at 150° (clockwise) points down-left; head = two short strokes
+      const tg = (150 + 90) * Math.PI / 180, hl = 5;
+      const back = (off) => ({ x: t.x - hl * Math.sin(tg + off), y: t.y + hl * Math.cos(tg + off) });
+      const b1 = back(.7), b2 = back(-.7);
+      h.appendChild(el('path', { d: `M${b1.x} ${b1.y} L${t.x} ${t.y} L${b2.x} ${b2.y}`, fill: 'none', style: 'stroke:var(--hint)', 'stroke-width': 2.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+      h.appendChild(text('Drag', C, C + 17, 12, 'var(--hint)', { 'font-weight': 800 }));
+      hub.appendChild(h);
+    } else if (hint && v === 'b') {
+      const h = el('g', { class: 'hubfade' });
+      h.appendChild(text('Tap', C, C - 6, 13, 'var(--hint)', { 'font-weight': 800 }));
+      h.appendChild(text('a number', C, C + 10, 10, 'var(--hint)', { 'font-weight': 700 }));
+      hub.appendChild(h);
+    }
+    svg.appendChild(hub);
+
+    // Caption & coach card
+    coach.style.display = hint && v === 'c' ? 'block' : 'none';
+    let cap = '', isHint = false;
+    if (state.started) cap = 'Timer läuft · Mitte tippen = Pause';
+    else if (state.dragging) cap = 'release to start';
+    else if (hint) {
+      isHint = true;
+      cap = v === 'a' ? 'Drag the dot clockwise, or tap a number'
+          : v === 'b' ? 'Tap a number, or drag around the rim' : '';
+    }
+    captionEl.textContent = cap || ' ';
+    captionEl.classList.toggle('hint', isHint);
+  }
+
+  // --- Interaction --------------------------------------------------------------
+  const angleFrom = (e) => {
+    const r = svg.getBoundingClientRect();
+    const x = e.clientX - (r.left + r.width / 2), y = e.clientY - (r.top + r.height / 2);
+    let a = Math.atan2(x, -y) * 180 / Math.PI;
+    if (a < 0) a += 360;
+    return a;
+  };
+  const snap = (a) => { const m = Math.round(a / 6); return m <= 0 ? 0 : m * 6; };
+  let last = null;
+
+  svg.addEventListener('pointerdown', (e) => {
+    const q = e.target.closest('[data-quick]');
+    if (q) { state.angle = Number(q.dataset.quick) * 6; start(); return; }
+    if (state.started) { reset(true); }
+    const r = svg.getBoundingClientRect();
+    const d = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2)) / (r.width / SIZE);
+    if (d < HUB_R) return;
+    svg.setPointerCapture(e.pointerId);
+    state.dragging = true; state.idleHint = false; last = null;
+    wrap.classList.add('dragging');
+    const a0 = snap(angleFrom(e));
+    state.angle = a0 >= 300 ? 0 : a0; last = state.angle; render();
+  });
+  svg.addEventListener('pointermove', (e) => {
+    if (!state.dragging) return;
+    let a = snap(angleFrom(e));
+    // Avoid jumping across the 12 o'clock seam
+    if (last != null) { if (last > 300 && a < 60) a = 360; else if (last < 60 && a > 300) a = 0; }
+    last = a; state.angle = a; render();
+  });
+  const end = () => {
+    if (!state.dragging) return;
+    state.dragging = false; wrap.classList.remove('dragging');
+    if (state.angle > 0) start(); else { state.idleHint = true; scheduleHint(); render(); }
+  };
+  svg.addEventListener('pointerup', end);
+  svg.addEventListener('pointercancel', end);
+
+  function start() {
+    state.started = true; state.dragging = false; state.idleHint = false;
+    try { localStorage.setItem(KEY, '1'); } catch {}
+    render();
+  }
+  function reset(keepVariant) {
+    state.angle = 0; state.started = false; state.dragging = false; state.idleHint = true;
+    try { localStorage.removeItem(KEY); } catch {}
+    render();
+  }
+  function scheduleHint() { /* In der App: Hinweis erscheint erst nach ~1,5 s Ruhe. Im Mockup sofort sichtbar. */ }
+
+  document.getElementById('reset').addEventListener('click', () => reset());
+  document.querySelectorAll('.variants button').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('.variants button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    state.variant = b.dataset.v; reset();
+  }));
+
+  // Mockup always shows the hint on load; the stored flag only matters in the real app.
+  try { localStorage.removeItem(KEY); } catch {}
+  render();
+})();
+</script>
+</body>
+</html>
