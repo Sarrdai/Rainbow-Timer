@@ -1,8 +1,7 @@
-import { Fragment } from 'react';
 import { Shade, shine } from '../balloon-shapes';
 import {
-    colorAt, GarlandSection, GLOW, GlowGradient, Hang, lightTiming, Lit, makeKit, mix, RAINBOW, scallops, starPath, useSvgId,
-    type DecoLayout, type DecoVariant, type Kit,
+    colorAt, Defs, GarlandSection, Glow, GLOW, Hang, lightTiming, Lit, makeKit, mix, RAINBOW, scallops, starPath, useSvgId,
+    type DecoLayout, type DecoVariant,
 } from './kit';
 
 /*
@@ -27,7 +26,7 @@ function FabricPennants({ layout }: { layout: DecoLayout }) {
     const patterns = [`url(#${id}-dots)`, `url(#${id}-stripes)`, null, `url(#${id}-zigzag)`];
     return (
         <>
-            <defs>
+            <Defs>
                 <pattern id={`${id}-dots`} width={8} height={8} patternUnits="userSpaceOnUse">
                     <circle cx={2} cy={2} r={1.5} fill="#fff" opacity={0.75} />
                     <circle cx={6} cy={6} r={1.5} fill="#fff" opacity={0.75} />
@@ -38,15 +37,22 @@ function FabricPennants({ layout }: { layout: DecoLayout }) {
                 <pattern id={`${id}-zigzag`} width={8} height={7} patternUnits="userSpaceOnUse">
                     <path d="M0 4.5 L2 2.5 L4 4.5 L6 2.5 L8 4.5" fill="none" stroke="#fff" strokeWidth={1.3} opacity={0.65} />
                 </pattern>
-            </defs>
+            </Defs>
             {scallops(layout).map((s) => {
                 const cord = s.path();
                 return (
-                    <GarlandSection key={s.index} fall={k.fall(0.25, 0.45)} delay={k.delay(s.start)}>
-                        {/* Cotton cord: soft edge, cream core, twist marks */}
-                        <path d={cord} fill="none" stroke="#6b4a8a" strokeOpacity={0.45} strokeWidth={4.4} strokeLinecap="round" />
-                        <path d={cord} fill="none" stroke="#fffaf2" strokeWidth={2.8} strokeLinecap="round" />
-                        <path d={cord} fill="none" stroke="#d8c6b2" strokeWidth={2.8} strokeDasharray="1.2 2.8" />
+                    <GarlandSection
+                        key={s.index}
+                        x={s.mid}
+                        fall={k.fall(0.25, 0.45)}
+                        delay={k.delay(s.start)}
+                        cord={<>
+                            {/* Cotton cord: soft edge, cream core, twist marks */}
+                            <path d={cord} fill="none" stroke="#6b4a8a" strokeOpacity={0.45} strokeWidth={4.4} strokeLinecap="round" />
+                            <path d={cord} fill="none" stroke="#fffaf2" strokeWidth={2.8} strokeLinecap="round" />
+                            <path d={cord} fill="none" stroke="#d8c6b2" strokeWidth={2.8} strokeDasharray="1.2 2.8" />
+                        </>}
+                    >
                         {s.points(48, 44).map((p) => {
                             const color = RAINBOW[colorAt(s, p)];
                             const pattern = patterns[(p.i + s.index) % patterns.length];
@@ -84,9 +90,16 @@ function RoundPennants({ layout }: { layout: DecoLayout }) {
                 const cord = s.path((x) => 1.6 * Math.sin(x * 1.25), 1.2);
                 const points = s.points(46, 38);
                 return (
-                    <GarlandSection key={s.index} fall={k.fall(0.25, 0.45)} delay={k.delay(s.start)}>
-                        <path d={cord} fill="none" stroke="#6b4a8a" strokeOpacity={0.35} strokeWidth={3.8} strokeLinejoin="round" />
-                        <path d={cord} fill="none" stroke="#fff" strokeWidth={2.4} strokeLinejoin="round" />
+                    <GarlandSection
+                        key={s.index}
+                        x={s.mid}
+                        fall={k.fall(0.25, 0.45)}
+                        delay={k.delay(s.start)}
+                        cord={<>
+                            <path d={cord} fill="none" stroke="#6b4a8a" strokeOpacity={0.35} strokeWidth={3.8} strokeLinejoin="round" />
+                            <path d={cord} fill="none" stroke="#fff" strokeWidth={2.4} strokeLinejoin="round" />
+                        </>}
+                    >
                         {points.map((p) => {
                             const color = RAINBOW[colorAt(s, p)];
                             return (
@@ -152,9 +165,16 @@ function TasselGarland({ layout }: { layout: DecoLayout }) {
             {scallops(layout).map((s) => {
                 const cord = s.path();
                 return (
-                    <GarlandSection key={s.index} fall={k.fall(0.25, 0.45)} delay={k.delay(s.start)}>
-                        <path d={cord} fill="none" stroke={GOLD_DARK} strokeWidth={2.6} strokeLinecap="round" />
-                        <path d={cord} fill="none" stroke="#ffe39a" strokeWidth={1} transform="translate(0 -0.6)" />
+                    <GarlandSection
+                        key={s.index}
+                        x={s.mid}
+                        fall={k.fall(0.25, 0.45)}
+                        delay={k.delay(s.start)}
+                        cord={<>
+                            <path d={cord} fill="none" stroke={GOLD_DARK} strokeWidth={2.6} strokeLinecap="round" />
+                            <path d={cord} fill="none" stroke="#ffe39a" strokeWidth={1} transform="translate(0 -0.6)" />
+                        </>}
+                    >
                         {s.points(30, 48).map((p) => (
                             <Hang key={p.i} x={p.x} y={p.y} delay={k.delay(s.start + 0.3 + p.i * 0.04)} sway="party-sway party-sway--wide" phase={k.phase()}>
                                 <Tassel color={RAINBOW[colorAt(s, p)]} />
@@ -177,30 +197,36 @@ function FairyLights({ layout }: { layout: DecoLayout }) {
     const k = makeKit(layout, 4);
     return (
         <>
-            <defs>
+            <Defs>
                 {RAINBOW.map((color, i) => (
-                    <Fragment key={i}>
-                        <GlowGradient id={`${id}-glow${i}`} color={GLOW[i]} strength={0.8} />
-                        <radialGradient id={`${id}-bulb${i}`} cx={0.42} cy={0.62} r={0.7}>
-                            <stop offset="0" stopColor="#fffbe8" />
-                            <stop offset="0.4" stopColor={GLOW[i]} />
-                            <stop offset="1" stopColor={color} />
-                        </radialGradient>
-                    </Fragment>
+                    <radialGradient key={i} id={`${id}-bulb${i}`} cx={0.42} cy={0.62} r={0.7}>
+                        <stop offset="0" stopColor="#fffbe8" />
+                        <stop offset="0.4" stopColor={GLOW[i]} />
+                        <stop offset="1" stopColor={color} />
+                    </radialGradient>
                 ))}
-            </defs>
+            </Defs>
             {scallops(layout).map((s) => (
-                <GarlandSection key={s.index} fall={k.fall(0.75, 0.95)} delay={k.delay(s.start)}>
-                    <path d={s.path((x) => 1.1 * Math.sin(x / 2.6), 1.5)} fill="none" stroke="#1d3a29" strokeWidth={1.7} strokeLinecap="round" />
-                    <path d={s.path((x) => 1.1 * Math.sin(x / 2.6 + Math.PI), 1.5)} fill="none" stroke="#2f5a40" strokeWidth={1.7} strokeLinecap="round" />
+                <GarlandSection
+                    key={s.index}
+                    x={s.mid}
+                    fall={k.fall(0.75, 0.95)}
+                    delay={k.delay(s.start)}
+                    cord={<>
+                        <path d={s.path((x) => 1.1 * Math.sin(x / 2.6), 1.5)} fill="none" stroke="#1d3a29" strokeWidth={1.7} strokeLinecap="round" />
+                        <path d={s.path((x) => 1.1 * Math.sin(x / 2.6 + Math.PI), 1.5)} fill="none" stroke="#2f5a40" strokeWidth={1.7} strokeLinecap="round" />
+                    </>}
+                >
                     {s.points(36, 32).map((p) => {
                         const i = colorAt(s, p);
                         const { on, off } = lightTiming(k, s, p);
                         return (
-                            <Hang key={p.i} x={p.x} y={p.y} angle={(p.i % 2 ? 1 : -1) * k.rand(8, 22)} delay={k.delay(s.start + 0.3 + p.i * 0.04)} phase={k.phase()}>
+                            <Hang
+                                key={p.i} x={p.x} y={p.y} angle={(p.i % 2 ? 1 : -1) * k.rand(8, 22)} delay={k.delay(s.start + 0.3 + p.i * 0.04)} phase={k.phase()}
+                                glow={<Glow y={19} r={22} color={GLOW[i]} strength={0.8} on={on} off={off} twinkle={k.twinkle()} />}
+                            >
                                 <path d={BULB} fill={mix(RAINBOW[i], -0.55)} />
                                 <Lit on={on} off={off}>
-                                    <circle {...k.twinkle()} cx={0} cy={19} r={22} fill={`url(#${id}-glow${i})`} />
                                     <path d={BULB} fill={`url(#${id}-bulb${i})`} />
                                     {shine(-2.4, 15, 1.4, 3.8, 12, 0.75)}
                                 </Lit>
@@ -225,34 +251,40 @@ function FestoonBulbs({ layout }: { layout: DecoLayout }) {
     const k = makeKit(layout, 5);
     return (
         <>
-            <defs>
+            <Defs>
                 {GLOW.map((tint, i) => (
-                    <Fragment key={i}>
-                        <GlowGradient id={`${id}-glow${i}`} color={tint} strength={0.6} />
-                        <radialGradient id={`${id}-glass${i}`} cx={0.45} cy={0.55} r={0.62}>
-                            <stop offset="0" stopColor="#fffef5" />
-                            <stop offset="0.38" stopColor="#ffefc2" />
-                            <stop offset="1" stopColor={tint} />
-                        </radialGradient>
-                    </Fragment>
+                    <radialGradient key={i} id={`${id}-glass${i}`} cx={0.45} cy={0.55} r={0.62}>
+                        <stop offset="0" stopColor="#fffef5" />
+                        <stop offset="0.38" stopColor="#ffefc2" />
+                        <stop offset="1" stopColor={tint} />
+                    </radialGradient>
                 ))}
-            </defs>
+            </Defs>
             {scallops(layout).map((s) => {
                 const cord = s.path();
                 return (
-                    <GarlandSection key={s.index} fall={k.fall(0.75, 0.95)} delay={k.delay(s.start)}>
-                        <path d={cord} fill="none" stroke="#0b0918" strokeWidth={3} strokeLinecap="round" />
-                        <path d={cord} fill="none" stroke="#5a5290" strokeOpacity={0.7} strokeWidth={0.9} transform="translate(0 -0.8)" />
+                    <GarlandSection
+                        key={s.index}
+                        x={s.mid}
+                        fall={k.fall(0.75, 0.95)}
+                        delay={k.delay(s.start)}
+                        cord={<>
+                            <path d={cord} fill="none" stroke="#0b0918" strokeWidth={3} strokeLinecap="round" />
+                            <path d={cord} fill="none" stroke="#5a5290" strokeOpacity={0.7} strokeWidth={0.9} transform="translate(0 -0.8)" />
+                        </>}
+                    >
                         {s.points(62, 42).map((p) => {
                             const i = colorAt(s, p);
                             const { on, off } = lightTiming(k, s, p);
                             return (
-                                <Hang key={p.i} x={p.x} y={p.y} delay={k.delay(s.start + 0.3 + p.i * 0.05)} sway="party-sway party-sway--slow" phase={k.phase()}>
+                                <Hang
+                                    key={p.i} x={p.x} y={p.y} delay={k.delay(s.start + 0.3 + p.i * 0.05)} sway="party-sway party-sway--slow" phase={k.phase()}
+                                    glow={<Glow y={27} r={40} color={GLOW[i]} strength={0.6} on={on} off={off} twinkle={k.twinkle('party-twinkle party-twinkle--calm')} />}
+                                >
                                     <path d="M0 0 V9" stroke="#0b0918" strokeWidth={1.6} />
                                     <circle cx={0} cy={27} r={11.5} fill="#fff" fillOpacity={0.07} stroke="#fff" strokeOpacity={0.22} />
                                     <path d={FILAMENT} fill="none" stroke="#c8a46a" strokeOpacity={0.5} strokeWidth={0.9} />
                                     <Lit on={on} off={off}>
-                                        <circle {...k.twinkle('party-twinkle party-twinkle--calm')} cx={0} cy={27} r={40} fill={`url(#${id}-glow${i})`} />
                                         <circle cx={0} cy={27} r={11.5} fill={`url(#${id}-glass${i})`} />
                                         <path d={FILAMENT} fill="none" stroke="#fff6cf" strokeWidth={1.2} strokeLinejoin="round" />
                                     </Lit>
@@ -272,9 +304,12 @@ function FestoonBulbs({ layout }: { layout: DecoLayout }) {
 const LANTERN_RX = 15;
 const LANTERN_RY = 13;
 
-/** Round paper lantern with ribs and a tassel, lit from the inside, on a string of length `drop` */
-function Lantern({ id, i, drop, on, off, twinkle }: { id: string; i: number; drop: number; on: string; off: string; twinkle: ReturnType<Kit['twinkle']> }) {
-    const cy = drop + 17;
+/** Center of a lantern on a string of length `drop` */
+const lanternY = (drop: number) => drop + 17;
+
+/** Round paper lantern with ribs and a tassel, lit from the inside, on a string of length `drop`; the glow is a layer of its own */
+function Lantern({ id, i, drop, on, off }: { id: string; i: number; drop: number; on: string; off: string }) {
+    const cy = lanternY(drop);
     const bottom = cy + LANTERN_RY;
     const ribs = [-8.5, -4.2, 0, 4.2, 8.5].map((dy) => {
         const w = Math.round(LANTERN_RX * Math.sqrt(1 - (dy / LANTERN_RY) ** 2) * 10) / 10;
@@ -285,7 +320,6 @@ function Lantern({ id, i, drop, on, off, twinkle }: { id: string; i: number; dro
             <path d={`M0 0 V${drop + 1}`} stroke="#4a4370" strokeWidth={1} />
             <ellipse cx={0} cy={cy} rx={LANTERN_RX} ry={LANTERN_RY} fill={mix(RAINBOW[i], -0.6)} />
             <Lit on={on} off={off}>
-                <circle {...twinkle} cx={0} cy={cy} r={40} fill={`url(#${id}-glow${i})`} />
                 <ellipse cx={0} cy={cy} rx={LANTERN_RX} ry={LANTERN_RY} fill={`url(#${id}-paper${i})`} />
             </Lit>
             <path d={ribs} fill="none" stroke="#000" strokeOpacity={0.2} strokeWidth={0.9} />
@@ -301,26 +335,33 @@ function Lanterns({ layout }: { layout: DecoLayout }) {
     const k = makeKit(layout, 6);
     return (
         <>
-            <defs>
+            <Defs>
                 {RAINBOW.map((color, i) => (
-                    <Fragment key={i}>
-                        <GlowGradient id={`${id}-glow${i}`} color={GLOW[i]} strength={0.6} />
-                        <radialGradient id={`${id}-paper${i}`} cx={0.45} cy={0.45} r={0.62}>
-                            <stop offset="0" stopColor="#fff4cc" />
-                            <stop offset="0.5" stopColor={GLOW[i]} />
-                            <stop offset="1" stopColor={color} />
-                        </radialGradient>
-                    </Fragment>
+                    <radialGradient key={i} id={`${id}-paper${i}`} cx={0.45} cy={0.45} r={0.62}>
+                        <stop offset="0" stopColor="#fff4cc" />
+                        <stop offset="0.5" stopColor={GLOW[i]} />
+                        <stop offset="1" stopColor={color} />
+                    </radialGradient>
                 ))}
-            </defs>
+            </Defs>
             {scallops(layout).map((s) => (
-                <GarlandSection key={s.index} fall={k.fall(0.75, 0.95)} delay={k.delay(s.start)}>
-                    <path d={s.path()} fill="none" stroke="#3a3260" strokeWidth={1.5} strokeLinecap="round" />
+                <GarlandSection
+                    key={s.index}
+                    x={s.mid}
+                    fall={k.fall(0.75, 0.95)}
+                    delay={k.delay(s.start)}
+                    cord={<path d={s.path()} fill="none" stroke="#3a3260" strokeWidth={1.5} strokeLinecap="round" />}
+                >
                     {s.points(58, 58).map((p) => {
                         const { on, off } = lightTiming(k, s, p);
+                        const i = colorAt(s, p);
+                        const drop = 4 + (p.i % 3) * 7;
                         return (
-                            <Hang key={p.i} x={p.x} y={p.y} delay={k.delay(s.start + 0.3 + p.i * 0.05)} sway="party-sway party-sway--slow" phase={k.phase()}>
-                                <Lantern id={id} i={colorAt(s, p)} drop={4 + (p.i % 3) * 7} on={on} off={off} twinkle={k.twinkle('party-twinkle party-twinkle--calm')} />
+                            <Hang
+                                key={p.i} x={p.x} y={p.y} delay={k.delay(s.start + 0.3 + p.i * 0.05)} sway="party-sway party-sway--slow" phase={k.phase()}
+                                glow={<Glow y={lanternY(drop)} r={40} color={GLOW[i]} strength={0.6} on={on} off={off} twinkle={k.twinkle('party-twinkle party-twinkle--calm')} />}
+                            >
+                                <Lantern id={id} i={i} drop={drop} on={on} off={off} />
                             </Hang>
                         );
                     })}

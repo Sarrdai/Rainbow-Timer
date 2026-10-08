@@ -1,6 +1,6 @@
 "use client";
 
-import React, { memo, useEffect, useRef, useState, type CSSProperties } from 'react';
+import React, { memo, startTransition, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { cn } from '@/lib/utils';
 import { BALLOON_COLORS, CLASSIC_BALLOON, SHAPED_BALLOONS, type BalloonShape } from './balloon-shapes';
 import { DECO_SETS, type DecoLayout, type DecoTheme, type DecoVariant } from './decoration';
@@ -117,12 +117,11 @@ const vars = (v: Record<string, string | number>) => v as CSSProperties;
 
 /** Memoized, so popping a balloon does not redraw the decoration */
 const DecoView = memo(function DecoView({ deco, exiting }: { deco: Deco; exiting: boolean }) {
-    const { width: W, height: H } = deco.layout;
     return (
-        <svg className={cn('party-deco fixed inset-0 z-[40]', exiting && 'is-exiting', deco.fadedAt !== null && 'is-faded')} width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+        <div className={cn('party-deco fixed inset-0 z-[40]', exiting && 'is-exiting', deco.fadedAt !== null && 'is-faded')} style={vars({ '--deco-w': `${deco.layout.width}px` })}>
             <deco.Corner layout={deco.layout} />
             <deco.Garland layout={deco.layout} />
-        </svg>
+        </div>
     );
 });
 
@@ -208,7 +207,8 @@ export function PartyDecoration({ active, visible, avoidRef, onBalloonPop }: Par
         if (active) {
             const deco = buildDeco(nextId.current++, readTheme(), false, avoidRef?.current?.getBoundingClientRect() ?? null);
             const scene = buildScene(nextId.current++, deco, false);
-            setScenes((s) => [...s, scene]);
+            // The new scene is a large SVG tree: render it in slices, so the title and the confetti keep moving
+            startTransition(() => setScenes((s) => [...s, scene]));
         } else {
             const now = performance.now();
             setScenes((s) => s.map((sc) => (sc.exitedAt === null ? { ...sc, exitedAt: now } : sc)));

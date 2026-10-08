@@ -84,6 +84,14 @@ export function useTimerAudio(isMuted: boolean, isAlarmPlaying: boolean) {
         oscillator.stop(t + 0.15);
     }, [initializeAudio]);
 
+    // Creating the AudioContext blocks for a moment: do it when the first press starts, not in the click that
+    // plays the first sound and starts the party animations
+    useEffect(() => {
+        const warmUp = () => { void initializeAudio(); };
+        window.addEventListener('pointerdown', warmUp, { once: true, capture: true });
+        return () => window.removeEventListener('pointerdown', warmUp, { capture: true });
+    }, [initializeAudio]);
+
     useEffect(() => {
         if (isAlarmPlaying) {
             if (!isMuted) getAlarm().play().catch(() => {});

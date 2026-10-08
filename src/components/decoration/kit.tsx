@@ -1,4 +1,4 @@
-import { useId, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useId, type CSSProperties, type ReactNode } from 'react';
 import { RAINBOW_COLORS } from '../confetti';
 
 /*
@@ -21,7 +21,7 @@ export interface DecoLayout {
     seed: number;
 }
 
-/** A garland or corner decoration drawn into the full-window SVG */
+/** A garland or corner decoration: layers placed in window coordinates inside the full-window decoration */
 export type DecoVariant = (props: { layout: DecoLayout }) => ReactNode;
 
 export const RAINBOW = RAINBOW_COLORS;
@@ -84,6 +84,8 @@ export interface HangPoint { x: number; y: number; angle: number; i: number }
 
 export interface Scallop {
     index: number;
+    /** Center x */
+    mid: number;
     /** Entrance delay (seconds, unshifted): the middle sections drop in first */
     start: number;
     y: (x: number) => number;
@@ -106,6 +108,7 @@ export function scallops({ width, avoid }: DecoLayout): Scallop[] {
         const y = (x: number) => top + sag * (1 - ((x - mid) / half) ** 2);
         return {
             index,
+            mid,
             start: 0.05 + Math.abs(index - (count - 1) / 2) * 0.08,
             y,
             path: (dy = () => 0, step = 3) => {
@@ -190,6 +193,10 @@ export function curlPoints(c: Curl, loop: number): [number, number, boolean][] {
     });
 }
 
+/** Circles as one path (filled as their union): far fewer elements than one circle each */
+export const circlesPath = (circles: readonly (readonly [number, number, number])[]) =>
+    circles.map(([cx, cy, r]) => `M${f1(cx - r)} ${f1(cy)}a${f1(r)} ${f1(r)} 0 1 0 ${f1(2 * r)} 0a${f1(r)} ${f1(r)} 0 1 0 ${f1(-2 * r)} 0Z`).join('');
+
 export function starPath(cx: number, cy: number, outer: number, inner = outer * 0.45) {
     return Array.from({ length: 10 }, (_, k) => {
         const a = ((-90 + k * 36) * Math.PI) / 180;
@@ -200,16 +207,61 @@ export function starPath(cx: number, cy: number, outer: number, inner = outer * 
 
 /** Draws once per top corner; `fromEdge` turns an offset from that corner's side edge into an x position */
 export const corners = (k: Kit, draw: (fromEdge: (dx: number) => number, side: 0 | 1) => ReactNode) =>
-    ([0, 1] as const).map((side) => <g key={side}>{draw((dx) => (side === 0 ? dx : k.width - dx), side)}</g>);
+    ([0, 1] as const).map((side) => <Fragment key={side}>{draw((dx) => (side === 0 ? dx : k.width - dx), side)}</Fragment>);
 
 /* ---------- Wrappers ---------- */
 
+/*
+ * Every animated piece is an HTML node of its own with a small SVG drawing inside, so the browser moves it on the
+ * compositor instead of repainting a window-sized SVG on every frame. Nodes have zero size; positions and
+ * transform origins are in pixels relative to the enclosing node.
+ */
+
+/** Zero-size node at the top left corner of the enclosing node */
+export function Layer({ className, style, children }: { className?: string; style?: CSSProperties; children?: ReactNode }) {
+    return <div className={className ? `party-node ${className}` : 'party-node'} style={style}>{children}</div>;
+}
+
+/** Style that moves a layer to (x, y), optionally rotated (degrees) and scaled */
+export const place = (x: number, y: number, angle = 0, scale = 1): CSSProperties => ({
+    transform: `translate(${f1(x)}px, ${f1(y)}px)${angle ? ` rotate(${f1(angle)}deg)` : ''}${scale !== 1 ? ` scale(${f1(scale)})` : ''}`,
+});
+
+/** SVG drawing in pixels around the enclosing node; it overflows its zero size */
+export function Art({ children }: { children: ReactNode }) {
+    return <svg className="party-art">{children}</svg>;
+}
+
+/** Gradients and patterns of one variant, shared by all of its drawings */
+export function Defs({ children }: { children: ReactNode }) {
+    return <svg className="party-defs"><defs>{children}</defs></svg>;
+}
+
+/** Falls to the floor when the party ends, tipping over around (x, y) */
+export function Fall({ fall, x, y = 0, children }: { fall: CSSProperties; x: number; y?: number; children: ReactNode }) {
+    return <Layer className="party-fall" style={{ ...fall, transformOrigin: `${f1(x)}px ${f1(y)}px` }}>{children}</Layer>;
+}
+
+interface GarlandSectionProps {
+    /** Center of the section; it tips over around its top center when it falls */
+    x: number;
+    fall: CSSProperties;
+    delay: string;
+    /** SVG drawing of the cord */
+    cord: ReactNode;
+    /** Hang items */
+    children: ReactNode;
+}
+
 /** One garland section: drops in from the top edge and falls to the floor when the party ends */
-export function GarlandSection({ fall, delay, children }: { fall: CSSProperties; delay: string; children: ReactNode }) {
+export function GarlandSection({ x, fall, delay, cord, children }: GarlandSectionProps) {
     return (
-        <g className="party-fall" style={fall}>
-            <g className="party-drop" style={vars({ '--delay': delay })}>{children}</g>
-        </g>
+        <Fall fall={fall} x={x}>
+            <Layer className="party-drop" style={vars({ '--delay': delay })}>
+                <Art>{cord}</Art>
+                {children}
+            </Layer>
+        </Fall>
     );
 }
 
@@ -221,44 +273,97 @@ interface HangProps {
     /** Sway animation class; empty for items that keep still */
     sway?: string;
     phase?: string;
+    /** Glow layer behind the drawing; it is round and close to the hang point, so it does not need to sway along */
+    glow?: ReactNode;
+    /** SVG drawing around the hang point */
     children: ReactNode;
 }
 
 /** An item hanging from (x, y): unfolds on entrance, then sways around its hang point */
-export function Hang({ x, y, angle = 0, delay, sway = 'party-sway', phase = '0s', children }: HangProps) {
+export function Hang({ x, y, angle = 0, delay, sway = 'party-sway', phase = '0s', glow, children }: HangProps) {
+    const art = <Art>{children}</Art>;
     return (
-        <g transform={`translate(${f1(x)} ${f1(y)})${angle ? ` rotate(${f1(angle)})` : ''}`}>
-            <g className="party-item" style={vars({ '--delay': delay })}>
-                <g className={sway || undefined} style={vars({ '--sway-delay': phase })}>{children}</g>
-            </g>
-        </g>
+        <Layer style={place(x, y, angle)}>
+            <Layer className="party-item" style={vars({ '--delay': delay })}>
+                {glow}
+                {sway ? <Layer className={sway} style={vars({ '--sway-delay': phase })}>{art}</Layer> : art}
+            </Layer>
+        </Layer>
     );
 }
 
-interface DangleProps { x: number; len: number; delay: string; fall: CSSProperties; phase: string; children: ReactNode }
+interface DangleProps { x: number; len: number; delay: string; fall: CSSProperties; phase: string; glow?: ReactNode; children: ReactNode }
 
 /** An item on a string of length `len` from the top edge: drops in from above and swings gently */
-export function Dangle({ x, len, delay, fall, phase, children }: DangleProps) {
+export function Dangle({ x, len, delay, fall, phase, glow, children }: DangleProps) {
     return (
-        <g className="party-fall" style={fall}>
-            <g transform={`translate(${f1(x)} 0)`}>
-                <g className="party-hang" style={vars({ '--delay': delay, '--from': `${-Math.round(len + 80)}px` })}>
-                    <g className="party-sway party-sway--gentle" style={vars({ '--sway-delay': phase })}>
-                        <path className="party-thread" d={`M0 -6 V${f1(len)}`} fill="none" strokeWidth={1.2} />
-                        {children}
-                    </g>
-                </g>
-            </g>
-        </g>
+        <Fall fall={fall} x={x} y={-6}>
+            <Layer style={place(x, 0)}>
+                <Layer className="party-hang" style={vars({ '--delay': delay, '--from': `${-Math.round(len + 80)}px` })}>
+                    <Layer className="party-sway party-sway--gentle" style={vars({ '--sway-delay': phase })}>
+                        {glow}
+                        <Art>
+                            <path className="party-thread" d={`M0 -6 V${f1(len)}`} fill="none" strokeWidth={1.2} />
+                            {children}
+                        </Art>
+                    </Layer>
+                </Layer>
+            </Layer>
+        </Fall>
     );
 }
 
-/** A streamer or light strand hanging from a top corner: sways from its top and falls at the end */
-export function CornerStrand({ fall, phase, gentle, children }: { fall: CSSProperties; phase: string; gentle?: boolean; children: ReactNode }) {
+interface CornerStrandProps {
+    x: number;
+    fall: CSSProperties;
+    phase: string;
+    gentle?: boolean;
+    /** Layers on top of the drawing */
+    over?: ReactNode;
+    /** SVG drawing of the strand */
+    children: ReactNode;
+}
+
+/** A streamer or light strand hanging from a top corner at x: sways from its top and falls at the end */
+export function CornerStrand({ x, fall, phase, gentle, over, children }: CornerStrandProps) {
     return (
-        <g className="party-fall" style={fall}>
-            <g className={gentle ? 'party-curl party-curl--gentle' : 'party-curl'} style={vars({ '--sway-delay': phase })}>{children}</g>
-        </g>
+        <Fall fall={fall} x={x}>
+            <Layer className={gentle ? 'party-curl party-curl--gentle' : 'party-curl'} style={{ ...vars({ '--sway-delay': phase }), transformOrigin: `${f1(x)}px 0` }}>
+                <Art>{children}</Art>
+                {over}
+            </Layer>
+        </Fall>
+    );
+}
+
+interface SweepProps {
+    /** Window in the coordinates of the enclosing node */
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+    /** CSS mask image: the brightness profile the window runs down with */
+    mask: string;
+    /** Animation class moving the window and its content (party-sweep-on, party-drip) */
+    className: string;
+    style?: CSSProperties;
+    children: ReactNode;
+}
+
+/**
+ * A masked window that slides down over its children while they counter-move and stay in place: a brightness
+ * profile running down a light strand as two compositor animations, instead of one animation per light.
+ */
+export function Sweep({ left, top, width, height, mask, className, style, children }: SweepProps) {
+    return (
+        <div
+            className={`party-sweep ${className}`}
+            style={{ ...style, left: f1(left), top: f1(top), width: f1(width), height: f1(height), maskImage: mask, WebkitMaskImage: mask }}
+        >
+            <div className="party-sweep-hold">
+                <Layer style={place(-left, -top)}>{children}</Layer>
+            </div>
+        </div>
     );
 }
 
@@ -267,7 +372,7 @@ export function Lit({ on, off, neon, children }: { on: string; off: string; neon
     return <g className={neon ? 'party-lit party-lit--neon' : 'party-lit'} style={vars({ '--on': on, '--off': off })}>{children}</g>;
 }
 
-/** Soft round glow that fades out to the edge; cheaper than a blur filter */
+/** Soft round glow in SVG that fades out to the edge; cheaper than a blur filter */
 export function GlowGradient({ id, color, strength }: { id: string; color: string; strength: number }) {
     return (
         <radialGradient id={id}>
@@ -275,5 +380,34 @@ export function GlowGradient({ id, color, strength }: { id: string; color: strin
             <stop offset="0.4" stopColor={color} stopOpacity={Math.round(strength * 34) / 100} />
             <stop offset="1" stopColor={color} stopOpacity={0} />
         </radialGradient>
+    );
+}
+
+interface GlowProps {
+    x?: number;
+    y: number;
+    r: number;
+    /** Hex color #rrggbb */
+    color: string;
+    strength: number;
+    on: string;
+    off: string;
+    twinkle: ReturnType<Kit['twinkle']>;
+}
+
+/** Glow of a light around (x, y) as a layer of its own, so its twinkle runs on the compositor; switches on and off like Lit */
+export function Glow({ x = 0, y, r, color, strength, on, off, twinkle }: GlowProps) {
+    const alpha = (a: number) => color + Math.round(a * 255).toString(16).padStart(2, '0');
+    return (
+        <Layer className="party-lit" style={vars({ '--on': on, '--off': off })}>
+            <div
+                className={`party-glow ${twinkle.className}`}
+                style={{
+                    ...twinkle.style,
+                    left: f1(x - r), top: f1(y - r), width: f1(2 * r), height: f1(2 * r),
+                    background: `radial-gradient(closest-side, ${alpha(strength)}, ${alpha(strength * 0.34)} 40%, ${alpha(0)})`,
+                }}
+            />
+        </Layer>
     );
 }
