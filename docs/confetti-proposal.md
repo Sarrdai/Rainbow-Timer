@@ -48,7 +48,7 @@ Folgen:
 
 - **60/120 Hz und gedrosselte Displays** laufen automatisch gleich schnell.
 - **Hänger:** Das Konfetti steht kurz still und ist danach sofort wieder an der richtigen Stelle. Keine Zeitlupe (heute: `dt` auf 50 ms begrenzt) und kein Nachholen.
-- **Lebensdauer** ist beim Erzeugen bekannt (Zeit bis unter den Bildschirmrand). Die Schleife läuft nur bis zum letzten Ende, danach wird der Canvas auf 1×1 verkleinert.
+- **Lebensdauer** ist beim Erzeugen bekannt (Zeit bis unter den Bildschirmrand). Die Schleife läuft nur bis zum letzten Ende. Der Zeichenpuffer wird erst 10 s danach (und nicht im Party-Modus) auf 1×1 verkleinert, weil das erneute Anlegen den ersten Frame verlängert.
 - **Regen ohne Arbeit pro Frame:** Regentropfen werden einmal pro Sekunde für die nächsten 1,5 s mit Startzeiten in der Zukunft eingeplant; der Shader blendet sie erst ab ihrer Startzeit ein. `setRaining(false)` setzt eine Abschnittszeit, später geplante Tropfen erscheinen nicht.
 - **Ausblenden und Wegpusten** sind Uniforms (`dissolveAt`, `sweepAt`, `sweepOrigin`): Der Shader wendet sie auf alle Teilchen an, die vorher entstanden sind. Kein Durchlauf über die Teilchen in JavaScript.
 
@@ -65,13 +65,27 @@ Folgen:
 
 ## Messungen
 
-Headless Chromium 1194 (Playwright 1.56), Viewport 412×915 bei DPR 2,625, **CPU 4× gedrosselt** (grob Mittelklasse-Android), WebGL über SwiftShader. Median aus 3 Durchläufen. „Main-Thread“ ist `TaskDuration` aus `Performance.getMetrics` (CDP) geteilt durch die Zahl der Frames; darin stecken auch Frame-Zähler und Seite (Leerlauf-Grundlast in der ersten Zeile). „JS“ ist nur die Zeit im Frame-Callback des Renderers.
+Headless Chromium 1194 (Playwright 1.56), Viewport 412×915 bei DPR 2,625, **CPU 4× gedrosselt** (grob Mittelklasse-Android), WebGL über SwiftShader. Median aus 3 Durchläufen. „Main-Thread“ ist `TaskDuration` aus `Performance.getMetrics` (CDP) geteilt durch die Zahl der Frames (rAF-Zähler). Die Deko-Last ist synthetisch: 60 kleine SVG-Ballons werden jeden Frame neu ins DOM geschrieben.
 
-MEASUREMENTS_TABLE
+Alle Werte in ms Main-Thread-Zeit pro Frame, in Klammern die reine JavaScript-Zeit des Renderers. Die leere Seite (Frame-Zähler, Mockup) liegt bei **2,5 ms**.
+
+| | WebGL (Vorschlag) | Canvas 2D (Rückfall) | DOM + WAAPI |
+|---|---|---|---|
+| Init (Kontext, Shader, Atlas bzw. Sprites) | 51 | 0,5 | 81 |
+| Auslösen Timer-Ende, 200 Teilchen (JS) | 2,0 | 0,6 | **218** |
+| längster Frame in den ersten 400 ms | 50 | 33 | 67 |
+| Flug, 200 Teilchen | 3,4 (0,14) | 5,5 (1,6) | 36,9 (26 fps) |
+| Flug, 600 Teilchen | 4,2 (0,15) | 10,3 (4,6) | 143 (p95-Frame 1,3 s) |
+| Party-Regen, ~110 Teilchen | 4,3 (0,11) | 4,4 (1,1) | 69 |
+| Zuschlag zu Deko-ähnlicher DOM-Last (~26 ms/Frame) | ≈ 0 (im Rauschen) | +5,7 | +57 |
+| bei Main-Thread-Hänger | steht, springt danach richtig | steht, springt danach richtig | läuft weiter |
 
 Einordnung:
 
-MEASUREMENTS_NOTES
+- **WebGL** kostet in JavaScript 0,1–0,15 ms pro Frame, egal ob 100 oder 600 Teilchen. Der Rest über der Grundlast (~1 ms) ist das Absetzen der GPU-Befehle und das Compositing des Canvas.
+- **Canvas 2D** wächst linear (≈ 8 µs JS pro Teilchen bei 4× Drosselung). Für die geplanten Mengen (max. ~250 gleichzeitig) bleibt es unter 2 ms JS und ist damit eine brauchbare Rückfallebene.
+- **DOM + WAAPI** ist beim Auslösen ein einzelner Task von über 200 ms, genau im Moment des Party-Starts oder Timer-Endes. Danach kostet jeder Frame durch Hunderte Compositor-Layer 35–70 ms, mit Deko-Last mehr als doppelt so viel. Der Vorteil „läuft bei Hängern weiter“ wiegt das nicht auf.
+- Der längste Frame direkt nach dem Auslösen (WebGL 50 ms) kommt vermutlich vom Anlegen des fenstergroßen Zeichenpuffers nach dem Leerlauf (1×1 → voll) und dem ersten Draw in SwiftShader; einzeln gemessen ist das nicht. In der App bleibt der Puffer darum bis 10 s nach dem letzten Teilchen und während des ganzen Party-Modus angelegt.
 
 Grenzen der Messung: Headless hat keine echte GPU und keine WebView. Die Main-Thread-Zahlen sind übertragbar, GPU-Zeit und Präsentation nicht. Darum enthält das Mockup alle drei Techniken, einen Frame-Zähler und künstliche Last, um es direkt auf dem Handy, in DuckDuckGo und in der Capacitor-App zu prüfen.
 

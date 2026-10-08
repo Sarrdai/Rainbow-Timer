@@ -205,10 +205,10 @@
 
   <section>
     <h2>Messwerte aus Headless Chromium</h2>
-    <p>Main-Thread-Zeit pro Frame bei 4-facher CPU-Drosselung (grob ein Mittelklasse-Android), gemessen per CDP. „Spawn“ ist die einmalige Zeit beim Auslösen, „Frame“ der laufende Aufwand pro Frame, „mit Deko-Last“ der Zuschlag, wenn gleichzeitig DOM-Arbeit wie beim Montieren der Dekoration läuft.</p>
+    <p>Main-Thread-Zeit pro Frame bei 4-facher CPU-Drosselung (grob ein Mittelklasse-Android), gemessen per CDP, Median aus 3 Läufen. In Klammern die reine JavaScript-Zeit des Renderers. Die leere Seite liegt bei 2,5 ms pro Frame; ein Frame hat bei 60 Hz 16,7 ms.</p>
     <div class="table-wrap">
       <table id="bench-table">
-        <thead><tr><th>Technik</th><th>Init</th><th>Spawn 200</th><th>Frame Ø</th><th>Frame p95</th><th>Regen Ø</th><th>mit Deko-Last</th><th>läuft bei Hänger</th></tr></thead>
+        <thead><tr><th>Technik</th><th>Init</th><th>Auslösen 200</th><th>Flug 200</th><th>Flug 600</th><th>Regen</th><th>Zuschlag bei Deko-Last</th><th>bei Hänger</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -232,6 +232,17 @@
 <canvas id="confetti-canvas" aria-hidden="true"></canvas>
 <div class="meter" id="meter" aria-hidden="true"><canvas id="meter-graph" width="320" height="56"></canvas><div id="meter-a"></div><div id="meter-b"></div></div>
 
+<script>
+  // Results of docs/mockups/confetti-bench.mjs (412×915 @ 2.625x, CPU 4x throttled, median of 3)
+  window.BENCH_RESULTS = {
+    rows: [
+      { pick: true, name: 'WebGL', init: '51 ms', spawn: '2 ms', frame: '3,4 ms (0,14)', p95: '4,2 ms (0,15)', rain: '4,3 ms (0,11)', deco: '≈ 0 (Rauschen)', hitch: 'steht, springt dann richtig' },
+      { name: 'Canvas 2D', init: '0,5 ms', spawn: '0,6 ms', frame: '5,5 ms (1,6)', p95: '10,3 ms (4,6)', rain: '4,4 ms (1,1)', deco: '+5,7 ms', hitch: 'steht, springt dann richtig' },
+      { name: 'DOM + WAAPI', init: '81 ms', spawn: '218 ms', frame: '36,9 ms · 26 fps', p95: '143 ms', rain: '69 ms', deco: '+57 ms', hitch: 'läuft weiter' },
+    ],
+    note: 'WebGL kostet pro Frame fast nur die Grundlast, unabhängig von der Teilchenzahl. Canvas 2D wächst mit jedem Teilchen und bleibt als Rückfallebene gut genug. DOM + WAAPI läuft zwar bei Hängern weiter, blockiert aber schon beim Auslösen über 200 ms und macht jeden weiteren Frame teuer.',
+  };
+</script>
 <script>
 /* ---------------------------------------------------------------------------------------------------------------
  * Particle model shared by all renderers. A particle's state is a pure function of time:
@@ -479,7 +490,7 @@ class Loop {
     const ms = performance.now() - t0;
     stats.frames++; stats.jsMs += ms;
     if (t < this.until || rain.on) this.id = requestAnimationFrame(this.tick);
-    else { this.id = 0; this.idleTimer = setTimeout(this.onIdle, 1000); }
+    else { this.id = 0; this.idleTimer = setTimeout(this.onIdle, 10000); }
   };
   stop() { cancelAnimationFrame(this.id); clearTimeout(this.idleTimer); this.id = 0; }
 }
