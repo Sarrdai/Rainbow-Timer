@@ -53,6 +53,7 @@ async function measure(page, cdp, ms) {
     p95: sorted[Math.floor(sorted.length * 0.95)] ?? 0,
     max: sorted[sorted.length - 1] ?? 0,
     js,
+    engineFrames: s1.f - s0.f,
     layers: b.LayoutCount - a.LayoutCount,
   };
 }
@@ -75,38 +76,40 @@ for (const engine of ENGINES) {
     const idle = await measure(page, cdp, 1500);
 
     // Timer-end burst (200 pieces): spawn cost plus the first 400 ms, then steady flight
-    await page.evaluate(() => mock.timerEnd(document.getElementById('dial').getBoundingClientRect(), false));
+    await page.evaluate(() => { mock.timerEnd(document.getElementById('dial').getBoundingClientRect(), false); });
     const spawn = await page.evaluate(() => mock.stats.spawnMs);
+    if (process.env.DEBUG) console.error(engine, await page.evaluate(() => ({ alive: mock.renderer.alive(), name: mock.renderer.name })));
     const first = await measure(page, cdp, 400);
     const burst = await measure(page, cdp, 1600);
-    await page.evaluate(() => mock.interrupt(200, 400));
+    await page.evaluate(() => { mock.interrupt(200, 400); });
     await page.waitForTimeout(2500);
 
     // Stress: three bursts at once (600 pieces)
     await page.evaluate(() => { const r = document.getElementById('dial').getBoundingClientRect(); for (let i = 0; i < 3; i++) mock.timerEnd(r, false); });
     await page.waitForTimeout(200);
     const stress = await measure(page, cdp, 1500);
-    await page.evaluate(() => mock.interrupt(200, 400));
+    await page.evaluate(() => { mock.interrupt(200, 400); });
     await page.waitForTimeout(6000);
 
     // Party rain steady state (after the initial burst has fallen)
-    await page.evaluate(() => mock.timerEnd(document.getElementById('dial').getBoundingClientRect(), true));
+    await page.evaluate(() => { mock.timerEnd(document.getElementById('dial').getBoundingClientRect(), true); });
     await page.waitForTimeout(5000);
     const rain = await measure(page, cdp, 2000);
     const rainAlive = await page.evaluate(() => mock.renderer.alive());
-    await page.evaluate(() => mock.interrupt(200, 400));
+    await page.evaluate(() => { mock.interrupt(200, 400); });
     await page.waitForTimeout(6000);
 
     // Decoration-like DOM work with and without a running burst
     await page.evaluate(() => __deco(true));
     await page.waitForTimeout(500);
     const decoOnly = await measure(page, cdp, 1500);
-    await page.evaluate(() => mock.timerEnd(document.getElementById('dial').getBoundingClientRect(), false));
+    await page.evaluate(() => { mock.timerEnd(document.getElementById('dial').getBoundingClientRect(), false); });
     await page.waitForTimeout(100);
     const decoBurst = await measure(page, cdp, 1500);
     await page.evaluate(() => __deco(false));
-    await page.evaluate(() => mock.interrupt(200, 400));
+    await page.evaluate(() => { mock.interrupt(200, 400); });
     await page.waitForTimeout(2000);
+    if (process.env.DEBUG) console.error(JSON.stringify({ first, burst, stress }));
     runs.push({ init, spawn, idle, first, burst, stress, rain, rainAlive, decoOnly, decoBurst });
     await page.close();
   }
