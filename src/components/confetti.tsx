@@ -1,305 +1,137 @@
 "use client";
 
 import { useEffect, useRef } from 'react';
+import { ConfettiEngine, type ConfettiCommand, type ConfettiWorkerMessage } from './confetti-engine';
+
+export { RAINBOW_COLORS } from './confetti-engine';
+
+type Point = { x: number; y: number };
+/** A command without its id; the id is added when it is sent */
+type Request<T extends ConfettiCommand> = T extends { id: number } ? Omit<T, 'id'> : T;
 
 /**
- * Single shared confetti renderer.
- *
- * All effects (title bursts, timer-end burst, party rain) share one canvas and
- * one requestAnimationFrame loop. The loop only runs while pieces are alive or
- * rain is active, and the canvas backing store is released when idle.
- * Physics is time-based, so the animation runs at the same speed on 60 Hz,
- * 120 Hz and throttled displays.
+ * Single shared confetti renderer (see ConfettiEngine). Where the browser supports it, the engine runs in a
+ * worker drawing on an OffscreenCanvas, so the confetti keep flying while the main thread is busy, e.g. while
+ * the party decoration mounts; otherwise it runs on the main thread.
  */
-
-export const RAINBOW_COLORS = ['#e81416', '#ffa500', '#faeb36', '#79c314', '#487de7', '#4b369d', '#70369d'];
-
-const FRAME_MS = 1000 / 60;
-const MAX_DT_MS = 50;
-const MAX_DPR = 2;
-const BURN_OFF_MS = 1500;
-const RAIN_PIECES_PER_FRAME = 1;
-
-interface Physics {
-  gravity: number;
-  terminal: number;
-  dragX: number;
-  dragY: number;
-  /** Per-frame alpha multiplier (1 = no fade over time) */
-  fade: number;
-  /** Fade out near the bottom of the viewport */
-  fadeAtBottom: boolean;
-}
-
-const BURST_PHYSICS: Physics = { gravity: 0.125, terminal: 8, dragX: 0.075, dragY: 0.075, fade: 1, fadeAtBottom: true };
-const POINT_PHYSICS: Physics = { gravity: 0.08, terminal: 6, dragX: 0.02, dragY: 0, fade: 0.98, fadeAtBottom: false };
-const SHOWER_PHYSICS: Physics = { gravity: 0.06, terminal: 4.2, dragX: 0.015, dragY: 0, fade: 1, fadeAtBottom: true };
-/** Per-frame alpha multiplier for dissolving pieces (~0.6 s to invisible) */
-const DISSOLVE_FADE = 0.9;
-
-interface Piece {
-  x: number; y: number;
-  vx: number; vy: number;
-  rot: number; rotSpeed: number;
-  flip: number; flipSpeed: number;
-  w: number; h: number;
-  color: string;
-  alpha: number; baseAlpha: number;
-  fadeEnd: number;
-  physics: Physics;
-  /** Celebration pieces are swept away on interrupt; title bursts are not */
-  burnable: boolean;
-  doomed: boolean;
-  /** Fades out while it keeps falling (party mode switched off) */
-  dissolving: boolean;
-  group: number;
-}
-
-interface Group { count: number; resolve: () => void }
-
-class ConfettiEngine {
+class Confetti {
   private canvas: HTMLCanvasElement | null = null;
-  private ctx: CanvasRenderingContext2D | null = null;
-  private pieces: Piece[] = [];
-  private groups = new Map<number, Group>();
-  private nextGroup = 1;
-  private raining = false;
-  private rainAcc = 0;
-  private burnStart: number | null = null;
-  private rafId: number | null = null;
-  private lastTime = 0;
-  private width = 0;
-  private height = 0;
-  private dpr = 1;
+  private worker: Worker | null = null;
+  private local: ConfettiEngine | null = null;
+  /** Commands sent before the canvas is attached */
+  private queue: ConfettiCommand[] = [];
+  private pending = new Map<number, () => void>();
+  private nextId = 1;
 
   attach(canvas: HTMLCanvasElement) {
-    this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
-    window.addEventListener('resize', this.handleResize);
-    if (this.pieces.length || this.raining) this.start();
+    // A canvas can be transferred only once: a re-attach (Strict Mode) keeps the worker that holds it
+    if (canvas !== this.canvas) {
+      this.teardown();
+      this.canvas = canvas;
+      this.worker = this.startWorker(canvas);
+      if (!this.worker) {
+        this.local = new ConfettiEngine();
+        this.local.attach(canvas);
+      }
+    } else if (this.worker) {
+      this.post({ attach: true });
+    } else {
+      this.local?.attach();
+    }
+    window.addEventListener('resize', this.sendSize);
+    this.sendSize();
+    this.queue.splice(0).forEach((cmd) => this.send(cmd));
   }
 
   detach() {
-    window.removeEventListener('resize', this.handleResize);
-    this.stop();
-    this.canvas = null;
-    this.ctx = null;
+    window.removeEventListener('resize', this.sendSize);
+    if (this.worker) this.post({ detach: true });
+    else this.local?.detach();
   }
 
   /** Burst from a ring around the dial (timer end). Resolves when all pieces are gone. */
-  ringBurst(origin: { x: number; y: number }, innerRadius: number, outerRadius: number, count = 150): Promise<void> {
-    return this.spawnGroup(count, (i) => {
-      const angle = Math.random() * Math.PI * 2;
-      const radius = innerRadius + Math.random() * (outerRadius - innerRadius);
-      const speed = Math.random() * 6 + 6;
-      return this.makePiece(
-        RAINBOW_COLORS[i % RAINBOW_COLORS.length],
-        origin.x + Math.cos(angle) * radius, origin.y + Math.sin(angle) * radius,
-        Math.cos(angle) * speed, Math.sin(angle) * speed,
-        BURST_PHYSICS, true,
-      );
-    });
+  ringBurst(origin: Point, innerRadius: number, outerRadius: number, count?: number) {
+    return this.request({ type: 'ringBurst', origin, innerRadius, outerRadius, count });
   }
 
   /** Burst from a single point (title click, celebration interrupt). */
-  pointBurst(origin: { x: number; y: number }, count = 150): Promise<void> {
-    return this.spawnGroup(count, (i) => {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = Math.random() * 6 + 5;
-      const p = this.makePiece(
-        RAINBOW_COLORS[RAINBOW_COLORS.length - 1 - (i % RAINBOW_COLORS.length)],
-        origin.x, origin.y,
-        Math.cos(angle) * speed, Math.sin(angle) * speed,
-        POINT_PHYSICS, false,
-      );
-      p.alpha = p.baseAlpha = 1;
-      return p;
-    });
+  pointBurst(origin: Point, count?: number) {
+    return this.request({ type: 'pointBurst', origin, count });
   }
 
   /** A short, light shower falling from above the top edge (entering party mode). */
-  shower(count = 55): Promise<void> {
-    if (typeof window === 'undefined') return Promise.resolve();
-    const { innerWidth: width, innerHeight: height } = window;
-    return this.spawnGroup(count, () => this.makePiece(
-      RAINBOW_COLORS[Math.floor(Math.random() * RAINBOW_COLORS.length)],
-      Math.random() * width, -10 - Math.random() * height * 0.35,
-      Math.random() * 1.2 - 0.6, Math.random() * 1.8 + 1.6,
-      SHOWER_PHYSICS, false,
-    ));
+  shower(count?: number) {
+    return this.request({ type: 'shower', count });
   }
 
   /** Let title confetti that is still in the air fade out while it falls (leaving party mode). */
   dissolve() {
-    for (const p of this.pieces) {
-      if (!p.burnable) p.dissolving = true;
-    }
+    this.send({ type: 'dissolve' });
   }
 
   setRaining(raining: boolean) {
-    this.raining = raining;
-    if (raining) this.start();
+    this.send({ type: 'rain', raining });
   }
 
   /** Stop the rain and sweep all celebration pieces away from top to bottom. */
   interrupt() {
-    this.raining = false;
-    let any = false;
-    for (const p of this.pieces) {
-      if (p.burnable) { p.doomed = true; any = true; }
-    }
-    if (any) this.burnStart = performance.now();
+    this.send({ type: 'interrupt' });
   }
 
-  private makePiece(color: string, x: number, y: number, vx: number, vy: number, physics: Physics, burnable: boolean): Piece {
-    const size = Math.random() * 0.7 + 0.5;
-    const baseAlpha = Math.min(1, size);
-    return {
-      x, y, vx, vy,
-      rot: Math.random() * Math.PI * 2,
-      rotSpeed: (Math.random() * 10 - 5) * Math.PI / 180,
-      flip: Math.random() * Math.PI * 2,
-      flipSpeed: 0.05 + Math.random() * 0.1,
-      w: 8 * size, h: 12 * size,
-      color, alpha: baseAlpha, baseAlpha,
-      fadeEnd: Math.random() * 0.13 + 0.85,
-      physics, burnable, doomed: false, dissolving: false, group: 0,
-    };
-  }
-
-  private spawnGroup(count: number, factory: (i: number) => Piece): Promise<void> {
+  private request<T extends ConfettiCommand>(cmd: Request<T>): Promise<void> {
     if (typeof window === 'undefined') return Promise.resolve();
-    const group = this.nextGroup++;
-    return new Promise<void>((resolve) => {
-      this.groups.set(group, { count, resolve });
-      for (let i = 0; i < count; i++) {
-        const p = factory(i);
-        p.group = group;
-        this.pieces.push(p);
-      }
-      this.start();
+    const id = this.nextId++;
+    return new Promise((resolve) => {
+      this.pending.set(id, resolve);
+      this.send({ ...cmd, id } as ConfettiCommand);
     });
   }
 
-  private spawnRainPiece() {
-    const p = this.makePiece(
-      RAINBOW_COLORS[Math.floor(Math.random() * RAINBOW_COLORS.length)],
-      Math.random() * this.width, -20,
-      Math.random() * 4 - 2, Math.random() * 2 + 2,
-      BURST_PHYSICS, true,
-    );
-    p.rotSpeed = (Math.random() * 6 - 3) * Math.PI / 180;
-    this.pieces.push(p);
+  private send(cmd: ConfettiCommand) {
+    if (this.worker) this.post({ cmd });
+    else if (this.local) this.local.handle(cmd)?.then(() => { if ('id' in cmd) this.finish(cmd.id); });
+    else this.queue.push(cmd);
   }
 
-  private handleResize = () => {
-    if (this.rafId !== null) this.resize();
+  private startWorker(canvas: HTMLCanvasElement): Worker | null {
+    if (typeof Worker === 'undefined' || !('transferControlToOffscreen' in canvas)) return null;
+    let worker: Worker;
+    try {
+      worker = new Worker(new URL('./confetti.worker.ts', import.meta.url));
+    } catch {
+      return null;
+    }
+    worker.onmessage = (e: MessageEvent<number>) => this.finish(e.data);
+    const offscreen = canvas.transferControlToOffscreen();
+    worker.postMessage({ attach: true, canvas: offscreen } satisfies ConfettiWorkerMessage, [offscreen]);
+    return worker;
+  }
+
+  private post(message: ConfettiWorkerMessage, transfer: Transferable[] = []) {
+    this.worker?.postMessage(message, transfer);
+  }
+
+  private finish(id: number) {
+    this.pending.get(id)?.();
+    this.pending.delete(id);
+  }
+
+  private sendSize = () => {
+    this.send({ type: 'size', width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio || 1 });
   };
 
-  private resize() {
-    if (!this.canvas) return;
-    this.dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
-    this.width = window.innerWidth;
-    this.height = window.innerHeight;
-    this.canvas.width = Math.round(this.width * this.dpr);
-    this.canvas.height = Math.round(this.height * this.dpr);
+  private teardown() {
+    this.worker?.terminate();
+    this.local?.detach();
+    this.worker = null;
+    this.local = null;
+    // Bursts on the old canvas are gone with it
+    this.pending.forEach((resolve) => resolve());
+    this.pending.clear();
   }
-
-  private start() {
-    if (this.rafId !== null || !this.canvas) return;
-    this.resize();
-    this.lastTime = performance.now();
-    this.rafId = requestAnimationFrame(this.frame);
-  }
-
-  private stop() {
-    if (this.rafId !== null) cancelAnimationFrame(this.rafId);
-    this.rafId = null;
-    this.burnStart = null;
-    // Release the backing store while idle
-    if (this.canvas) { this.canvas.width = 0; this.canvas.height = 0; }
-  }
-
-  private release(p: Piece) {
-    if (!p.group) return;
-    const g = this.groups.get(p.group);
-    if (!g) return;
-    if (--g.count <= 0) {
-      this.groups.delete(p.group);
-      g.resolve();
-    }
-  }
-
-  private frame = (now: number) => {
-    const ctx = this.ctx;
-    if (!ctx || !this.canvas) { this.rafId = null; return; }
-
-    const dt = Math.min(now - this.lastTime, MAX_DT_MS);
-    this.lastTime = now;
-    const k = dt / FRAME_MS;
-
-    if (this.raining) {
-      this.rainAcc += RAIN_PIECES_PER_FRAME * k;
-      while (this.rainAcc >= 1) { this.spawnRainPiece(); this.rainAcc -= 1; }
-    }
-
-    let burnY: number | null = null;
-    let sweepDone = false;
-    if (this.burnStart !== null) {
-      burnY = ((now - this.burnStart) / BURN_OFF_MS) * this.height;
-      if (burnY > this.height) { sweepDone = true; this.burnStart = null; }
-    }
-
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-    const { height, dpr } = this;
-    const fadeStart = height * 0.8;
-    let write = 0;
-    for (let i = 0; i < this.pieces.length; i++) {
-      const p = this.pieces[i];
-      const ph = p.physics;
-
-      p.vy = Math.min(p.vy + ph.gravity * k, ph.terminal);
-      if (ph.dragX) p.vx *= Math.pow(1 - ph.dragX, k);
-      if (ph.dragY) p.vy *= Math.pow(1 - ph.dragY, k);
-      p.x += p.vx * k;
-      p.y += p.vy * k;
-      p.rot += p.rotSpeed * k;
-      p.flip += p.flipSpeed * k;
-      if (ph.fade !== 1) p.alpha *= Math.pow(ph.fade, k);
-      if (p.dissolving) p.alpha *= Math.pow(DISSOLVE_FADE, k);
-      if (ph.fadeAtBottom && p.y > fadeStart) {
-        const range = Math.max(1, height * p.fadeEnd - fadeStart);
-        p.alpha = Math.min(p.alpha, p.baseAlpha * (1 - Math.min(1, (p.y - fadeStart) / range)));
-      }
-
-      const dead = p.alpha <= 0.02 || p.y > height + 20
-        || (p.doomed && (sweepDone || (burnY !== null && p.y < burnY)));
-      if (dead) { this.release(p); continue; }
-
-      const cos = Math.cos(p.rot), sin = Math.sin(p.rot);
-      const sy = Math.cos(p.flip);
-      ctx.globalAlpha = p.alpha;
-      ctx.fillStyle = p.color;
-      ctx.setTransform(dpr * cos, dpr * sin, -dpr * sin * sy, dpr * cos * sy, dpr * p.x, dpr * p.y);
-      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
-
-      this.pieces[write++] = p;
-    }
-    this.pieces.length = write;
-    ctx.globalAlpha = 1;
-
-    if (write > 0 || this.raining) {
-      this.rafId = requestAnimationFrame(this.frame);
-    } else {
-      this.rafId = null;
-      this.stop();
-    }
-  };
 }
 
-export const confetti = new ConfettiEngine();
+export const confetti = new Confetti();
 
 /** Mount once per page. Hosts the shared confetti canvas. */
 export function ConfettiLayer() {

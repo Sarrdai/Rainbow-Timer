@@ -1,7 +1,7 @@
 import { Shade, shine } from '../balloon-shapes';
 import {
-    Art, circlesPath, CornerStrand, corners, curlPoints, curls, Dangle, Defs, f1, Fall, Glow, GLOW, GlowGradient, INK, Layer, Lit, makeKit, mix, place, RAINBOW, seconds,
-    starPath, Sweep, toPath, useSvgId, vars,
+    Art, bounds, circlesPath, CornerStrand, corners, curlPoints, curls, Dangle, Defs, f1, Fall, Glow, GLOW, GlowGradient, INK, Layer, Lit, makeKit, mix, place, RAINBOW, seconds,
+    starPath, Sweep, toPath, Unroll, useSvgId, vars,
     type DecoLayout, type DecoVariant, type Kit,
 } from './kit';
 
@@ -34,7 +34,6 @@ function frontPath(points: [number, number, boolean][]) {
 
 /** Curling ribbons: the light front of each turn with a glossy edge over the darker inside; they unroll from the corners */
 function RibbonCurls({ layout }: { layout: DecoLayout }) {
-    const id = useSvgId();
     const k = makeKit(layout, 11);
     return (
         <>
@@ -44,23 +43,14 @@ function RibbonCurls({ layout }: { layout: DecoLayout }) {
                 const front = frontPath(points);
                 const color = RAINBOW[c.colorIndex];
                 const w = f1(c.width + 1.6);
-                // Mask region just around the ribbon: a window-sized one costs a full-window offscreen buffer per ribbon
-                const pad = w + 12;
-                const xs = points.map((p) => p[0]);
-                const [x0, x1] = [Math.min(...xs) - pad, Math.max(...xs) + pad];
-                const [y0, y1] = [Math.min(...points.map((p) => p[1])) - pad, Math.max(...points.map((p) => p[1])) + pad];
                 return (
                     <CornerStrand key={n} x={c.x} fall={c.fall} phase={c.phase}>
-                        {/* Reveals the ribbon along its length as it unrolls */}
-                        <mask id={`${id}-${n}`} maskUnits="userSpaceOnUse" x={f1(x0)} y={f1(y0)} width={f1(x1 - x0)} height={f1(y1 - y0)}>
-                            <path className="party-draw" pathLength={1} style={vars({ '--delay': k.delay(c.start) })} d={full} fill="none" stroke="#fff" strokeWidth={w + 18} strokeLinecap="round" />
-                        </mask>
-                        <g mask={`url(#${id}-${n})`}>
+                        <Unroll box={bounds(points, w)} delay={k.delay(c.start)}>
                             <path d={full} fill="none" stroke={color} strokeWidth={w} strokeLinejoin="round" />
                             <path d={full} fill="none" stroke="#000" strokeOpacity={0.34} strokeWidth={w} strokeLinejoin="round" />
                             <path d={front} fill="none" stroke={color} strokeWidth={w} strokeLinejoin="round" />
                             <path d={front} fill="none" stroke="#fff" strokeOpacity={0.5} strokeWidth={f1(w * 0.22)} strokeLinecap="round" transform={`translate(0 ${f1(-w * 0.24)})`} />
-                        </g>
+                        </Unroll>
                     </CornerStrand>
                 );
             })}
@@ -243,7 +233,7 @@ function CurtainLights({ layout }: { layout: DecoLayout }) {
                     const start = 0.25 + i * 0.09;
                     dx += k.rand(22, 30);
                     const wireX = (y: number) => x + 2.5 * Math.sin(y / 38 + i);
-                    const wire = toPath(Array.from({ length: Math.ceil((len + 6) / 4) + 1 }, (_, n) => [wireX(-6 + n * 4), -6 + n * 4] as const));
+                    const wirePoints = Array.from({ length: Math.ceil((len + 6) / 4) + 1 }, (_, n) => [wireX(-6 + n * 4), -6 + n * 4] as const);
                     const leds: number[] = [];
                     for (let y = 10; y <= len; y += 16) leds.push(y);
                     // Glows need a circle each for their gradient; solid dots are drawn as one path
@@ -257,14 +247,12 @@ function CurtainLights({ layout }: { layout: DecoLayout }) {
                     const [onAt, dimAt, fullAt] = SWITCH_ON.flicker.map((share) => f1(share * len));
                     const bottom = len + fullAt + 12;
                     return (
-                        <CornerStrand
-                            key={i}
-                            x={x}
-                            fall={k.fall(0.45, 0.7)}
-                            phase={k.phase(3.4)}
-                            gentle
-                            over={
-                                <Layer className="party-switch" style={vars({ '--off': seconds(k.rand(0, 0.35)) })}>
+                        <CornerStrand key={i} x={x} fall={k.fall(0.45, 0.7)} phase={k.phase(3.4)} gentle>
+                            <Unroll box={bounds(wirePoints, 1)} delay={k.delay(start)}>
+                                <path className="party-wire" d={toPath(wirePoints)} fill="none" strokeWidth={1} />
+                            </Unroll>
+                            <Art>{dots(2, mix(RAINBOW[ci], -0.45))}</Art>
+                            <Layer className="party-switch" style={vars({ '--off': seconds(k.rand(0, 0.35)) })}>
                                     <Sweep
                                         left={x - 16} top={-20} width={32} height={bottom + 20}
                                         mask={`linear-gradient(to top, transparent, #000 ${onAt}px, rgb(0 0 0 / 0.15) ${dimAt}px, #000 ${fullAt}px)`}
@@ -278,11 +266,7 @@ function CurtainLights({ layout }: { layout: DecoLayout }) {
                                         </Sweep>
                                         <Art>{dots(2.2, mix(GLOW[ci], 0.6))}</Art>
                                     </Sweep>
-                                </Layer>
-                            }
-                        >
-                            <path className="party-draw party-wire" pathLength={1} style={vars({ '--delay': k.delay(start) })} d={wire} fill="none" strokeWidth={1} />
-                            {dots(2, mix(RAINBOW[ci], -0.45))}
+                            </Layer>
                         </CornerStrand>
                     );
                 });
@@ -297,19 +281,22 @@ function NeonCurls({ layout }: { layout: DecoLayout }) {
     return (
         <>
             {curls(k).map((c, n) => {
-                const d = toPath(curlPoints(c, 0.5));
+                const points = curlPoints(c, 0.5);
+                const d = toPath(points);
                 const glow = GLOW[c.colorIndex];
                 const tube = (stroke: string, width: number, opacity: number) => (
-                    <path className="party-draw" pathLength={1} style={vars({ '--delay': k.delay(c.start) })} d={d} fill="none" stroke={stroke} strokeWidth={f1(width)} strokeOpacity={opacity} strokeLinecap="round" strokeLinejoin="round" />
+                    <path d={d} fill="none" stroke={stroke} strokeWidth={f1(width)} strokeOpacity={opacity} strokeLinecap="round" strokeLinejoin="round" />
                 );
                 return (
                     <CornerStrand key={n} x={c.x} fall={c.fall} phase={c.phase}>
-                        <Lit on={k.delay(c.start + 0.9)} off={seconds(k.rand(0, 0.3))} neon>
-                            {tube(glow, c.width + 10, 0.1)}
-                            {tube(glow, c.width + 4.5, 0.24)}
-                            {tube(glow, c.width * 0.8, 1)}
-                            {tube('#fff', c.width * 0.26, 0.8)}
-                        </Lit>
+                        <Unroll box={bounds(points, c.width / 2 + 5)} delay={k.delay(c.start)}>
+                            <Lit on={k.delay(c.start + 0.9)} off={seconds(k.rand(0, 0.3))} neon>
+                                {tube(glow, c.width + 10, 0.1)}
+                                {tube(glow, c.width + 4.5, 0.24)}
+                                {tube(glow, c.width * 0.8, 1)}
+                                {tube('#fff', c.width * 0.26, 0.8)}
+                            </Lit>
+                        </Unroll>
                     </CornerStrand>
                 );
             })}

@@ -265,7 +265,7 @@
 @keyframes party-sway-wide { 0%, 12.5%, 25%, 37.5%, 50%, 62.5%, 75%, 87.5%, 100% { transform: rotate(-7deg); } 6.25%, 18.75%, 31.25%, 43.75%, 56.25%, 68.75%, 81.25%, 93.75% { transform: rotate(7deg); } }
 @keyframes party-sway-gentle { 0%, 12.5%, 25%, 37.5%, 50%, 62.5%, 75%, 87.5%, 100% { transform: rotate(-2deg); } 6.25%, 18.75%, 31.25%, 43.75%, 56.25%, 68.75%, 81.25%, 93.75% { transform: rotate(2deg); } }
 
-/* Corner pieces: strings drop in from above, paper fans spin open, streamers unroll from the top and sway */
+/* Corner pieces: strings drop in from above, paper fans spin open, streamers unroll from the top (Unroll) and sway */
 .party-hang { animation: party-hang-in 1.1s var(--spring) var(--delay) backwards; }
 @keyframes party-hang-in { from { transform: translateY(var(--from)); } }
 .party-pop-in { transform-origin: 0 0; animation: party-pop-in 0.8s var(--spring) var(--delay) backwards; }
@@ -275,8 +275,6 @@
 .party-curl--gentle { animation-name: party-curl-sway-gentle; }
 @keyframes party-curl-sway { 0%, 12.5%, 25%, 37.5%, 50%, 62.5%, 75%, 87.5%, 100% { transform: rotate(-2.5deg); } 6.25%, 18.75%, 31.25%, 43.75%, 56.25%, 68.75%, 81.25%, 93.75% { transform: rotate(2.5deg); } }
 @keyframes party-curl-sway-gentle { 0%, 12.5%, 25%, 37.5%, 50%, 62.5%, 75%, 87.5%, 100% { transform: rotate(-1.2deg); } 6.25%, 18.75%, 31.25%, 43.75%, 56.25%, 68.75%, 81.25%, 93.75% { transform: rotate(1.2deg); } }
-.party-draw { stroke-dasharray: 1; animation: party-draw 1.25s cubic-bezier(0.25, 0.8, 0.25, 1) var(--delay) backwards; }
-@keyframes party-draw { from { stroke-dashoffset: 1; } }
 
 /* Lights switch on one after another with a short flicker, then twinkle; neon tubes flicker a little longer */
 .party-lit { animation: party-light-on 0.6s linear var(--on) backwards; }
@@ -292,8 +290,8 @@
    so the lights switch on one after another and a shimmer runs down the strand without repainting */
 .party-sweep { position: absolute; }
 .party-sweep-hold { position: absolute; inset: 0; }
-.party-sweep-on { animation: party-sweep var(--dur) linear var(--delay) backwards; }
-.party-sweep-on > .party-sweep-hold { animation: party-sweep-hold var(--dur) linear var(--delay) backwards; }
+.party-sweep-on { animation: party-sweep var(--dur) var(--ease, linear) var(--delay) backwards; }
+.party-sweep-on > .party-sweep-hold { animation: party-sweep-hold var(--dur) var(--ease, linear) var(--delay) backwards; }
 @keyframes party-sweep { from { transform: translateY(var(--sweep-from)); } }
 @keyframes party-sweep-hold { from { transform: translateY(calc(-1 * var(--sweep-from))); } }
 /* The shimmer window is 0.8 strand lengths high and travels two strand lengths in a 2.6 s round, four rounds
@@ -361,7 +359,7 @@
 @media (prefers-reduced-motion: reduce) {
   .flap-cell, .flap-card { transition: none; }
   .rainbow-letter,
-  .party-drop, .party-item, .party-sway, .party-hang, .party-pop-in, .party-curl, .party-draw,
+  .party-drop, .party-item, .party-sway, .party-hang, .party-pop-in, .party-curl,
   .party-lit, .party-twinkle, .party-sweep-on, .party-sweep-on > .party-sweep-hold, .party-blink,
   .party-balloon, .party-balloon-bob {
     animation: none !important;

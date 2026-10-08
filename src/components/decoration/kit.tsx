@@ -318,19 +318,16 @@ interface CornerStrandProps {
     fall: CSSProperties;
     phase: string;
     gentle?: boolean;
-    /** Layers on top of the drawing */
-    over?: ReactNode;
-    /** SVG drawing of the strand */
+    /** Layers of the strand: Art, Unroll, Sweep */
     children: ReactNode;
 }
 
 /** A streamer or light strand hanging from a top corner at x: sways from its top and falls at the end */
-export function CornerStrand({ x, fall, phase, gentle, over, children }: CornerStrandProps) {
+export function CornerStrand({ x, fall, phase, gentle, children }: CornerStrandProps) {
     return (
         <Fall fall={fall} x={x}>
             <Layer className={gentle ? 'party-curl party-curl--gentle' : 'party-curl'} style={{ ...vars({ '--sway-delay': phase }), transformOrigin: `${f1(x)}px 0` }}>
-                <Art>{children}</Art>
-                {over}
+                {children}
             </Layer>
         </Fall>
     );
@@ -344,7 +341,8 @@ interface SweepProps {
     height: number;
     /** CSS mask image: the brightness profile the window runs down with */
     mask: string;
-    /** Animation class moving the window and its content (party-sweep-on, party-drip) */
+    /** Animation class moving the window and its content (party-sweep-on with --delay, --dur, --sweep-from and
+        optionally --ease; party-drip) */
     className: string;
     style?: CSSProperties;
     children: ReactNode;
@@ -364,6 +362,34 @@ export function Sweep({ left, top, width, height, mask, className, style, childr
                 <Layer style={place(-left, -top)}>{children}</Layer>
             </div>
         </div>
+    );
+}
+
+/** Bounding box [left, top, right, bottom] of points, grown by `pad` */
+export function bounds(points: readonly Point[], pad: number): [number, number, number, number] {
+    const xs = points.map((p) => p[0]);
+    const ys = points.map((p) => p[1]);
+    return [Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) + pad, Math.max(...ys) + pad];
+}
+
+/** Soft front edge of an unrolling drawing */
+const UNROLL_EDGE = 16;
+
+/**
+ * Reveals an SVG drawing within `box` from the top down, as if it unrolled or was drawn downwards: a sliding
+ * window on the compositor instead of an animated stroke that repaints the drawing on every frame.
+ */
+export function Unroll({ box: [left, top, right, bottom], delay, children }: { box: readonly number[]; delay: string; children: ReactNode }) {
+    const height = bottom - top + UNROLL_EDGE;
+    return (
+        <Sweep
+            left={left} top={top} width={right - left} height={height}
+            mask={`linear-gradient(to top, transparent, #000 ${UNROLL_EDGE}px)`}
+            className="party-sweep-on"
+            style={vars({ '--delay': delay, '--dur': '1.25s', '--ease': 'cubic-bezier(0.25, 0.8, 0.25, 1)', '--sweep-from': `${-f1(height)}px` })}
+        >
+            <Art>{children}</Art>
+        </Sweep>
     );
 }
 

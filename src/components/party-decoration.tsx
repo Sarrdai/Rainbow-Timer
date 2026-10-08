@@ -115,11 +115,27 @@ function buildScene(sceneId: number, deco: Deco, settled: boolean): Scene {
 
 const vars = (v: Record<string, string | number>) => v as CSSProperties;
 
+/**
+ * Counts from 1 up to `last`, one step per animation frame, so a large tree mounts in parts instead of in one long
+ * frame. The entrance animations start with a delay anyway. Settled scenes (rebuilt after a resize) start complete.
+ */
+function useStage(last: number, settled: boolean) {
+    const [stage, setStage] = useState(settled ? last : 1);
+    useEffect(() => {
+        if (stage >= last) return;
+        const id = requestAnimationFrame(() => setStage(stage + 1));
+        return () => cancelAnimationFrame(id);
+    }, [stage, last]);
+    return stage;
+}
+
 /** Memoized, so popping a balloon does not redraw the decoration */
 const DecoView = memo(function DecoView({ deco, exiting }: { deco: Deco; exiting: boolean }) {
+    // The garland first, the corner decoration a frame later
+    const stage = useStage(2, deco.layout.base < 0);
     return (
         <div className={cn('party-deco fixed inset-0 z-[40]', exiting && 'is-exiting', deco.fadedAt !== null && 'is-faded')} style={vars({ '--deco-w': `${deco.layout.width}px` })}>
-            <deco.Corner layout={deco.layout} />
+            {stage >= 2 && <deco.Corner layout={deco.layout} />}
             <deco.Garland layout={deco.layout} />
         </div>
     );
@@ -127,12 +143,14 @@ const DecoView = memo(function DecoView({ deco, exiting }: { deco: Deco; exiting
 
 function SceneView({ scene, onPop }: { scene: Scene; onPop: (index: number, x: number, y: number) => void }) {
     const exiting = scene.exitedAt !== null;
+    // The balloons follow the decoration's two stages
+    const stage = useStage(3, scene.decos[0].layout.base < 0);
     return (
         <>
             {/* Garland and corner decoration hang behind the title */}
             {scene.decos.map((deco) => <DecoView key={deco.id} deco={deco} exiting={exiting} />)}
             {/* Balloons float in front of the dial, below the confetti */}
-            <div className={cn('party-deco fixed inset-0 z-[50]', exiting && 'is-exiting')}>
+            {stage >= 3 && <div className={cn('party-deco fixed inset-0 z-[50]', exiting && 'is-exiting')}>
                 {scene.balloons.map((b, i) => (
                     <div
                         key={`${i}-${b.gen}`}
@@ -156,7 +174,7 @@ function SceneView({ scene, onPop }: { scene: Scene; onPop: (index: number, x: n
                         </div>
                     </div>
                 ))}
-            </div>
+            </div>}
         </>
     );
 }
