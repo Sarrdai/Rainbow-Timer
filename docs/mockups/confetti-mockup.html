@@ -1,0 +1,1144 @@
+<title>Rainbow Timer Konfetti</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;700;800&display=swap">
+<style>
+  /* Layout: a small app stage (title, dial, balloons) with the three occasions, controls for look, technique,
+     theme, sound and simulated load, a live frame meter, then the measurements and notes. */
+  :root {
+    --bg: hsl(300 65% 92%);
+    --surface: hsl(0 0% 100% / 0.72);
+    --surface-active: #ffffff;
+    --ink: hsl(271 47% 25%);
+    --ink-soft: hsl(268 38% 47%);
+    --line: hsl(300 30% 82%);
+    --focus: #4b369d;
+    --string: hsl(268 38% 47%);
+    --dial: hsl(0 0% 100% / 0.9);
+    --good: hsl(140 55% 32%);
+    --warn: hsl(28 90% 40%);
+    --bad: hsl(355 75% 45%);
+    --font-display: "Fredoka", "Nunito", system-ui, sans-serif;
+    --font-ui: "Nunito", "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: hsl(249 40% 12%);
+      --surface: hsl(249 35% 17%);
+      --surface-active: hsl(249 32% 24%);
+      --ink: hsl(253 100% 94%);
+      --ink-soft: hsl(255 63% 79%);
+      --line: hsl(249 25% 28%);
+      --focus: #c9b8ff;
+      --string: hsl(255 63% 79%);
+      --dial: hsl(249 32% 20%);
+      --good: hsl(140 55% 62%);
+      --warn: hsl(38 95% 62%);
+      --bad: hsl(355 90% 70%);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: hsl(249 40% 12%);
+    --surface: hsl(249 35% 17%);
+    --surface-active: hsl(249 32% 24%);
+    --ink: hsl(253 100% 94%);
+    --ink-soft: hsl(255 63% 79%);
+    --line: hsl(249 25% 28%);
+    --focus: #c9b8ff;
+    --string: hsl(255 63% 79%);
+    --dial: hsl(249 32% 20%);
+    --good: hsl(140 55% 62%);
+    --warn: hsl(38 95% 62%);
+    --bad: hsl(355 90% 70%);
+    color-scheme: dark;
+  }
+
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 500 15px/1.5 var(--font-ui); }
+  .page { max-width: 1080px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 96px; display: grid; gap: 32px; }
+  header { display: grid; gap: 4px; }
+  header p { margin: 0; color: var(--ink-soft); max-width: 66ch; }
+  h1 { margin: 0; font-size: 1.05rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+  h2 { margin: 0; font: 600 1.35rem/1.2 var(--font-display); text-wrap: balance; }
+  section { display: grid; gap: 14px; }
+  section > p { margin: 0; color: var(--ink-soft); max-width: 66ch; }
+  button { font: inherit; color: inherit; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+
+  /* App stage */
+  .stage { position: relative; display: grid; justify-items: center; gap: 18px; padding: 24px 16px 20px; border-radius: 28px; background: var(--surface); border: 1px solid var(--line); overflow: hidden; }
+  .title { cursor: pointer; border: 0; background: none; padding: 4px 12px; border-radius: 14px; font: 700 clamp(1.9rem, 7vw, 2.6rem)/1.1 var(--font-display); letter-spacing: -0.01em; -webkit-tap-highlight-color: transparent; transition: transform .45s cubic-bezier(.34,1.56,.64,1); }
+  .title:active { transform: scale(1.06, .9); transition-duration: 90ms; }
+  .title .r span:nth-child(1) { color: #e81416; } .title .r span:nth-child(2) { color: #ffa500; } .title .r span:nth-child(3) { color: #e0c500; }
+  .title .r span:nth-child(4) { color: #79c314; } .title .r span:nth-child(5) { color: #487de7; } .title .r span:nth-child(6) { color: #4b369d; } .title .r span:nth-child(7) { color: #70369d; }
+  :root[data-theme="dark"] .title .r span:nth-child(6) { color: #8f7cff; }
+  .title .w { color: var(--ink); }
+  .scene { display: grid; grid-template-columns: auto auto auto; align-items: center; justify-content: center; gap: clamp(8px, 4vw, 40px); }
+  .dial { position: relative; width: clamp(170px, 46vw, 240px); aspect-ratio: 1; border-radius: 50%; background: conic-gradient(#e81416, #ffa500, #faeb36, #79c314, #487de7, #4b369d, #70369d, #e81416); display: grid; place-items: center; transition: transform .3s; }
+  .dial::after { content: ""; position: absolute; inset: 21%; border-radius: 50%; background: var(--dial); box-shadow: inset 0 2px 8px hsl(0 0% 0% / .12); }
+  .dial b { position: relative; z-index: 1; font: 600 clamp(1.4rem, 5vw, 1.9rem)/1 var(--font-display); font-variant-numeric: tabular-nums; }
+  .dial.is-ringing { animation: ring .5s ease-in-out infinite alternate; }
+  @keyframes ring { from { transform: rotate(-2deg) scale(1.01); } to { transform: rotate(2deg) scale(1.03); } }
+  .balloons { display: grid; gap: 4px; justify-items: center; }
+  .balloon { width: clamp(40px, 11vw, 62px); cursor: pointer; border: 0; background: none; padding: 0; -webkit-tap-highlight-color: transparent; }
+  .balloon svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .balloon .str { stroke: var(--string); }
+  .balloon .bob { transform-origin: 50% 100%; animation: bob var(--bob) ease-in-out infinite; }
+  @keyframes bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-6px) rotate(3deg); } }
+  .balloon.is-popping .body { transform-box: fill-box; transform-origin: 50% 50%; animation: burst .14s ease-out forwards; }
+  .balloon.is-popping .str { opacity: 0; transition: opacity .4s; }
+  @keyframes burst { to { transform: scale(1.3); opacity: 0; } }
+  .balloon.is-fresh { animation: rise 1.2s cubic-bezier(.22,1,.36,1) both; }
+  @keyframes rise { from { transform: translateY(120px); opacity: 0; } 30% { opacity: 1; } }
+  .hint { margin: 0; min-height: 1.5em; color: var(--ink-soft); font-size: .9rem; text-align: center; }
+  .hint.is-live { color: var(--ink); font-weight: 800; }
+
+  .occasions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+  .btn { cursor: pointer; padding: 9px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-active); font-weight: 800; font-size: .92rem; }
+  .btn[aria-pressed="true"] { border-color: var(--focus); box-shadow: inset 0 0 0 1px var(--focus); }
+
+  /* Controls */
+  .controls { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+  .ctl { display: grid; gap: 6px; padding: 12px 14px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); min-width: 0; }
+  .ctl > span { font-size: .78rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg button { cursor: pointer; flex: 1 1 auto; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); font-weight: 700; font-size: .86rem; }
+  .seg button[aria-pressed="true"] { background: var(--surface-active); border-color: var(--focus); color: var(--ink); box-shadow: inset 0 0 0 1px var(--focus); }
+  .ctl small { color: var(--ink-soft); font-size: .8rem; line-height: 1.35; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+  input[type="range"] { flex: 1 1 140px; accent-color: var(--focus); }
+  .val { font-variant-numeric: tabular-nums; font-weight: 800; min-width: 7ch; }
+
+  /* Frame meter */
+  .meter { position: fixed; z-index: 80; left: 10px; bottom: 10px; display: grid; gap: 2px; padding: 8px 11px; border-radius: 14px; background: var(--surface-active); border: 1px solid var(--line); box-shadow: 0 4px 18px hsl(270 40% 20% / .14); font: 700 12px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; pointer-events: none; }
+  .meter canvas { width: 160px; height: 28px; display: block; }
+  .meter .ok { color: var(--good); } .meter .meh { color: var(--warn); } .meter .bad { color: var(--bad); }
+
+  table { border-collapse: collapse; width: 100%; font-size: .88rem; font-variant-numeric: tabular-nums; }
+  .table-wrap { overflow-x: auto; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); }
+  th, td { padding: 7px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { font-size: .74rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-soft); }
+  tbody tr:last-child td { border-bottom: 0; }
+  .pick td { font-weight: 800; }
+  .notes { margin: 0; padding-left: 1.2em; color: var(--ink-soft); max-width: 72ch; display: grid; gap: 5px; }
+  .notes b { color: var(--ink); }
+
+  /* Confetti layers (full window, above everything but the meter) */
+  #confetti-canvas, #confetti-dom { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 60; }
+  #confetti-dom { overflow: hidden; contain: strict; }
+  #confetti-dom i { position: absolute; left: 0; top: 0; display: block; will-change: transform; }
+  #confetti-dom i i { position: static; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .balloon .bob, .balloon.is-fresh, .dial.is-ringing { animation: none !important; }
+    .title { transition: none; }
+  }
+</style>
+
+<main class="page" lang="de">
+  <header>
+    <h1>Rainbow Timer · Konfetti-Mockup</h1>
+    <p>Neu gedachtes Konfetti für die drei Anlässe. Tippe auf den Titel, auf einen Ballon oder auf „Timer abgelaufen“. Unten kannst du Optik, Technik, Theme und eine künstliche Last umschalten. Der Zähler links unten zeigt Bildrate und Frame-Zeiten.</p>
+  </header>
+
+  <div class="stage" id="stage">
+    <button type="button" class="title" id="title" aria-pressed="false"><span class="r"><span>R</span><span>a</span><span>i</span><span>n</span><span>b</span><span>o</span><span>w</span></span> <span class="w" id="title-word">Timer</span></button>
+    <div class="scene">
+      <div class="balloons" id="balloons-left"></div>
+      <div class="dial" id="dial"><b id="dial-time">0:05</b></div>
+      <div class="balloons" id="balloons-right"></div>
+    </div>
+    <p class="hint" id="hint">Titel antippen: Party an oder aus · Ballon antippen: platzen lassen</p>
+    <div class="occasions">
+      <button type="button" class="btn" id="btn-party" aria-pressed="false">Party-Modus</button>
+      <button type="button" class="btn" id="btn-end">Timer abgelaufen</button>
+      <button type="button" class="btn" id="btn-countdown">5 s Countdown</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="ctl">
+      <span>Optik</span>
+      <div class="seg" id="look" role="group" aria-label="Optik">
+        <button type="button" data-v="paper">A · Papier</button>
+        <button type="button" data-v="mix" aria-pressed="true">B · Party-Mix</button>
+        <button type="button" data-v="sparkle">C · Funkeln</button>
+      </div>
+      <small id="look-info"></small>
+    </div>
+    <div class="ctl">
+      <span>Technik</span>
+      <div class="seg" id="engine" role="group" aria-label="Technik">
+        <button type="button" data-v="webgl" aria-pressed="true">WebGL</button>
+        <button type="button" data-v="canvas">Canvas 2D</button>
+        <button type="button" data-v="dom">DOM + WAAPI</button>
+      </div>
+      <small id="engine-info"></small>
+    </div>
+    <div class="ctl">
+      <span>Theme · Sound · Bewegung</span>
+      <div class="seg" id="theme" role="group" aria-label="Theme">
+        <button type="button" data-v="auto" aria-pressed="true">Auto</button>
+        <button type="button" data-v="light">Hell</button>
+        <button type="button" data-v="dark">Dunkel</button>
+      </div>
+      <div class="seg">
+        <button type="button" id="sound" aria-pressed="true">Sound an</button>
+        <button type="button" id="reduced" aria-pressed="false">Weniger Bewegung</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <span>Last simulieren</span>
+      <div class="row">
+        <input type="range" id="load" min="0" max="60" step="5" value="0" aria-label="Dauerlast in Millisekunden pro 100 ms">
+        <span class="val" id="load-val">aus</span>
+      </div>
+      <div class="row">
+        <button type="button" class="btn" id="hitch">Hänger 400 ms</button>
+        <button type="button" class="btn" id="party-hitch">Party-Start + Hänger</button>
+      </div>
+      <small>Dauerlast blockiert den Main-Thread alle 100 ms für die eingestellte Zeit. „Party-Start + Hänger“ ahmt das Montieren der Dekoration nach: Konfetti startet, dann ist der Main-Thread 3 × 120 ms beschäftigt.</small>
+    </div>
+  </div>
+
+  <section>
+    <h2>Messwerte aus Headless Chromium</h2>
+    <p>Main-Thread-Zeit pro Frame bei 4-facher CPU-Drosselung (grob ein Mittelklasse-Android), gemessen per CDP, Median aus 3 Läufen. In Klammern die reine JavaScript-Zeit des Renderers. Die leere Seite liegt bei 2,5 ms pro Frame; ein Frame hat bei 60 Hz 16,7 ms.</p>
+    <div class="table-wrap">
+      <table id="bench-table">
+        <thead><tr><th>Technik</th><th>Init</th><th>Auslösen 200</th><th>Flug 200</th><th>Flug 600</th><th>Regen</th><th>Zuschlag bei Deko-Last</th><th>bei Hänger</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p id="bench-note"></p>
+  </section>
+
+  <section>
+    <h2>So würde es in der App laufen</h2>
+    <ul class="notes">
+      <li><b>Party-Wechsel:</b> leichter Schwall von oben plus ein kleiner Fächer aus dem Titel, kein Sound. Beim Verlassen blendet fliegendes Titel-Konfetti weich aus.</li>
+      <li><b>Ballon platzt:</b> Schnipsel überwiegend in der Ballonfarbe spritzen aus der Ballonmitte, dazu ein kurzer, synthetischer Plopp.</li>
+      <li><b>Timer-Ende:</b> großer Ring-Ausbruch vom Ziffernblatt und die Tröte. Im Party-Modus regnet es weiter, bis du irgendwo tippst: dann pustet ein Windstoß von der Tippstelle das Konfetti weg und die Tröte verstummt, ohne extra Geräusch.</li>
+      <li><b>Technik:</b> Ein WebGL-Canvas auf dem Main-Thread. Jede Flugbahn ist eine Formel der Zeit und wird im Vertex-Shader ausgewertet. JavaScript schreibt pro Frame nur ein paar Uniforms und setzt zwei Draw-Calls ab, egal wie viele Teilchen fliegen. Ohne WebGL zeichnet dieselbe Formel auf einen 2D-Canvas.</li>
+      <li><b>Hänger:</b> Weil die Position direkt aus der Uhrzeit folgt, steht das Konfetti bei einem Hänger kurz still und ist danach sofort wieder an der richtigen Stelle, ohne Zeitlupe und ohne Nachholen.</li>
+      <li><b>Weniger Bewegung:</b> Statt zu fliegen, erscheinen wenige Schnipsel an ihrem Zielort, bleiben kurz stehen und blenden aus. Kein Regen.</li>
+    </ul>
+  </section>
+</main>
+
+<div id="confetti-dom" hidden></div>
+<canvas id="confetti-canvas" aria-hidden="true"></canvas>
+<div class="meter" id="meter" aria-hidden="true"><canvas id="meter-graph" width="320" height="56"></canvas><div id="meter-a"></div><div id="meter-b"></div></div>
+
+<script>
+  // Results of docs/mockups/confetti-bench.mjs (412×915 @ 2.625x, CPU 4x throttled, median of 3)
+  window.BENCH_RESULTS = {
+    rows: [
+      { pick: true, name: 'WebGL', init: '51 ms', spawn: '2 ms', frame: '3,4 ms (0,14)', p95: '4,2 ms (0,15)', rain: '4,3 ms (0,11)', deco: '≈ 0 (Rauschen)', hitch: 'steht, springt dann richtig' },
+      { name: 'Canvas 2D', init: '0,5 ms', spawn: '0,6 ms', frame: '5,5 ms (1,6)', p95: '10,3 ms (4,6)', rain: '4,4 ms (1,1)', deco: '+5,7 ms', hitch: 'steht, springt dann richtig' },
+      { name: 'DOM + WAAPI', init: '81 ms', spawn: '218 ms', frame: '36,9 ms · 26 fps', p95: '143 ms', rain: '69 ms', deco: '+57 ms', hitch: 'läuft weiter' },
+    ],
+    note: 'WebGL kostet pro Frame fast nur die Grundlast, unabhängig von der Teilchenzahl. Canvas 2D wächst mit jedem Teilchen und bleibt als Rückfallebene gut genug. DOM + WAAPI läuft zwar bei Hängern weiter, blockiert aber schon beim Auslösen über 200 ms und macht jeden weiteren Frame teuer.',
+  };
+</script>
+<script>
+/* ---------------------------------------------------------------------------------------------------------------
+ * Particle model shared by all renderers. A particle's state is a pure function of time:
+ * linear drag k pulls the launch velocity toward the falling speed vt, so
+ *   x(t) = x0 + vx (1 - e^-kt) / k + sway
+ *   y(t) = y0 + vt t + (vy - vt) (1 - e^-kt) / k
+ * Nothing is integrated per frame; a renderer only evaluates the formula at the current time.
+ * ------------------------------------------------------------------------------------------------------------- */
+const RAINBOW = ['#e81416', '#ffa500', '#faeb36', '#79c314', '#487de7', '#4b369d', '#70369d'];
+const BALLOON_COLORS = ['#e81416', '#ffa500', '#79c314', '#487de7', '#70369d', '#faeb36'];
+const SHAPE = { paper: 0, dot: 1, star: 2, curl: 3, heart: 4, halo: 5 };
+const FLAG = { burnable: 1, glow: 2, rain: 4 };
+/** Sprites stay sharp up to 2x on the GPU; the CPU canvas stops at 1.5x to keep its clears and draws cheap */
+const MAX_DPR = { gl: 2, cpu: 1.5 };
+const EPOCH = performance.now();
+const now = () => (performance.now() - EPOCH) / 1000;
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = (list) => list[Math.floor(Math.random() * list.length)];
+
+const LOOKS = {
+  paper: { info: 'Klassische Papierschnipsel mit heller Vorder- und dunklerer Rückseite.', mix: [[SHAPE.paper, 1]] },
+  mix: { info: 'Papier, Luftschlangen-Kringel, Punkte, Sterne und ein paar Herzen. Zweiton-Schattierung wie die Ballons; im Dunkeln leuchten Sterne und Punkte.', mix: [[SHAPE.paper, 0.5], [SHAPE.curl, 0.17], [SHAPE.dot, 0.17], [SHAPE.star, 0.11], [SHAPE.heart, 0.05]] },
+  sparkle: { info: 'Mehr Sterne und Punkte, im Dunkeln mit Glanz – festlicher, aber unruhiger.', mix: [[SHAPE.star, 0.4], [SHAPE.dot, 0.35], [SHAPE.paper, 0.25]] },
+};
+
+/** Per shape: size in CSS px, falling speed, flutter */
+const SHAPE_PHYSICS = {
+  [SHAPE.paper]: { w: [8, 10], h: [12, 15], vt: [120, 175], amp: [14, 30], freq: [2.4, 4.2], flip: [5, 11], spin: [1, 3.5] },
+  [SHAPE.dot]: { w: [7, 9], h: null, vt: [190, 240], amp: [2, 6], freq: [2, 3], flip: [3, 7], spin: [0, 1] },
+  [SHAPE.star]: { w: [13, 16], h: null, vt: [150, 200], amp: [6, 14], freq: [1.6, 2.6], flip: [0.5, 2], spin: [2, 5] },
+  [SHAPE.curl]: { w: [15, 19], h: null, vt: [105, 150], amp: [10, 20], freq: [1.4, 2.4], flip: [2.5, 5], spin: [0.6, 2] },
+  [SHAPE.heart]: { w: [11, 13], h: null, vt: [140, 180], amp: [10, 18], freq: [1.6, 2.6], flip: [1.5, 3.5], spin: [0.5, 1.5] },
+};
+
+const settings = { look: 'mix', engine: 'webgl', sound: true, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches };
+
+function pickShape() {
+  const mix = LOOKS[settings.look].mix;
+  let r = Math.random();
+  for (const [shape, share] of mix) { if ((r -= share) <= 0) return shape; }
+  return mix[0][0];
+}
+
+function hexRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+}
+
+/** Time until a particle has fallen below `bottom` (the asymptote of y(t); exact enough once the launch has decayed) */
+function lifeUntil(y0, vy, k, vt, bottom) {
+  return Math.min(12, Math.max(0.6, (bottom - y0 - (vy - vt) / k) / vt));
+}
+
+/**
+ * Creates one particle. `o` holds position, launch velocity, drag, start offset and flags.
+ * With reduced motion the particle appears where its launch would carry it and only fades in and out.
+ */
+function makeParticle(o) {
+  const shape = o.shape ?? pickShape();
+  const sp = SHAPE_PHYSICS[shape];
+  const w = rand(...sp.w), h = sp.h ? rand(...sp.h) : w;
+  const k = o.k;
+  const vt = rand(...sp.vt) * (o.vtScale ?? 1);
+  const color = o.color ?? pick(RAINBOW);
+  const glow = shape === SHAPE.star || shape === SHAPE.dot || (settings.look === 'sparkle' && Math.random() < 0.3);
+  const p = {
+    x: o.x, y: o.y, vx: o.vx, vy: o.vy, t0: o.t0, k, vt,
+    rot0: rand(0, Math.PI * 2), spin: rand(...sp.spin) * (Math.random() < 0.5 ? -1 : 1),
+    flip0: rand(0, Math.PI * 2), flip: rand(...sp.flip),
+    amp: rand(...sp.amp), freq: rand(...sp.freq), phase: rand(0, Math.PI * 2),
+    w, h, shape, color, rgb: hexRgb(color),
+    flags: (o.burnable ? FLAG.burnable : 0) | (glow ? FLAG.glow : 0) | (o.rain ? FLAG.rain : 0),
+    life: 0,
+  };
+  if (settings.reduced) {
+    p.x += p.vx / k; p.y += Math.max(p.vy, -200) / k;
+    p.vx = p.vy = 0; p.vt = 0; p.k = 1; p.amp = 0; p.spin = 0; p.flip = 0; p.flip0 = 0;
+    p.life = 1.8;
+  } else {
+    p.life = lifeUntil(p.y, p.vy, k, vt, innerHeight + 30);
+  }
+  return p;
+}
+
+/** Shared evaluation for the CPU renderers; mirrors the vertex shader. Returns null while not visible. */
+function evaluate(p, t, env, out) {
+  const tau = t - p.t0;
+  if (tau < 0 || tau > p.life) return null;
+  if ((p.flags & FLAG.rain) && p.t0 > env.rainCut) return null;
+  const e = Math.exp(-p.k * tau), om = (1 - e) / p.k;
+  let x = p.x + p.vx * om + p.amp * Math.sin(p.freq * tau + p.phase) * (1 - e);
+  let y = p.y + p.vt * tau + (p.vy - p.vt) * om;
+  let a = Math.min(1, tau / (settings.reduced ? 0.25 : 0.08)) * Math.min(1, Math.max(0, (p.life - tau) / (settings.reduced ? 0.5 : 0.4)));
+  a *= Math.min(1, Math.max(0, (env.h * 1.02 - y) / (env.h * 0.2)));
+  if (!(p.flags & FLAG.burnable) && p.t0 < env.dissolveAt) a *= Math.min(1, Math.max(0, 1 - (t - env.dissolveAt) / 0.6));
+  if ((p.flags & FLAG.burnable) && p.t0 < env.sweepAt && t > env.sweepAt) {
+    const ds = t - env.sweepAt, dx = x - env.sweepX, dy = y - env.sweepY, len = Math.max(1, Math.hypot(dx, dy));
+    const push = 1600 * ds * ds;
+    x += dx / len * push; y += dy / len * push + 700 * ds * ds;
+    a *= Math.max(0, 1 - ds / 0.6);
+  }
+  out.x = x; out.y = y; out.a = a;
+  out.rot = p.rot0 + p.spin * tau;
+  out.fl = Math.cos(p.flip0 + p.flip * tau);
+  out.tau = tau;
+  return out;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+ * Sprites: every shape is drawn once in the flat two-tone style of the balloons (a darker crescent at the lower
+ * right, the lit part offset up-left) plus a soft highlight.
+ * ------------------------------------------------------------------------------------------------------------- */
+const CELL = 64;
+
+function shapePath(ctx, shape) {
+  ctx.beginPath();
+  switch (shape) {
+    case SHAPE.paper: ctx.roundRect(5, 5, 54, 54, 6); break;
+    case SHAPE.dot: ctx.arc(32, 32, 26, 0, Math.PI * 2); break;
+    case SHAPE.star: {
+      for (let i = 0; i < 10; i++) {
+        const r = i % 2 ? 11.5 : 27, a = -Math.PI / 2 + i * Math.PI / 5;
+        ctx.lineTo(32 + Math.cos(a) * r, 34 + Math.sin(a) * r);
+      }
+      ctx.closePath();
+      break;
+    }
+    case SHAPE.curl: ctx.moveTo(10, 50); ctx.bezierCurveTo(8, 30, 30, 28, 31, 40); ctx.bezierCurveTo(32, 52, 52, 50, 53, 33); ctx.bezierCurveTo(54, 20, 44, 13, 37, 15); break;
+    case SHAPE.heart: ctx.moveTo(32, 55); ctx.bezierCurveTo(14, 42, 5, 31, 5, 21); ctx.bezierCurveTo(5, 12, 12, 7, 19, 7); ctx.bezierCurveTo(25, 7, 30, 11, 32, 16); ctx.bezierCurveTo(34, 11, 39, 7, 45, 7); ctx.bezierCurveTo(52, 7, 59, 12, 59, 21); ctx.bezierCurveTo(59, 31, 50, 42, 32, 55); ctx.closePath(); break;
+  }
+}
+
+function paint(ctx, shape, style) {
+  shapePath(ctx, shape);
+  if (shape === SHAPE.curl) {
+    ctx.strokeStyle = style; ctx.lineWidth = 13; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke();
+  } else if (shape === SHAPE.star) {
+    ctx.fillStyle = style; ctx.strokeStyle = style; ctx.lineWidth = 5; ctx.lineJoin = 'round'; ctx.fill(); ctx.stroke();
+  } else {
+    ctx.fillStyle = style; ctx.fill();
+  }
+}
+
+const HIGHLIGHTS = {
+  [SHAPE.paper]: [[19, 15, 10, 3.5, -0.5, 0.32]],
+  [SHAPE.dot]: [[22, 21, 6.5, 10, -0.55, 0.5], [35, 15, 2.8, 2.8, 0, 0.6]],
+  [SHAPE.star]: [[26, 25, 4.5, 6, -0.6, 0.5]],
+  [SHAPE.curl]: [[16, 36, 2.5, 6, 0.3, 0.35]],
+  [SHAPE.heart]: [[17, 19, 5, 8.5, -0.6, 0.45], [26, 12, 2, 2, 0, 0.55]],
+};
+
+/** Draws a shape into a 64×64 cell at the context's origin. hl: highlight color, hlScale: highlight strength. */
+function drawShape(ctx, shape, lit, dark, hl, hlScale = 1) {
+  if (shape === SHAPE.halo) {
+    const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 30);
+    g.addColorStop(0, lit); g.addColorStop(0.35, lit.replace(')', ' / 0.45)').replace('rgb(', 'rgb(')); g.addColorStop(1, 'rgb(0 0 0 / 0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
+    return;
+  }
+  ctx.save();
+  paint(ctx, shape, dark);
+  ctx.globalCompositeOperation = 'source-atop';
+  ctx.translate(-5, -5);
+  paint(ctx, shape, lit);
+  ctx.translate(5, 5);
+  ctx.fillStyle = hl;
+  for (const [x, y, rx, ry, rot, a] of HIGHLIGHTS[shape]) {
+    ctx.globalAlpha = a * hlScale;
+    ctx.beginPath(); ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** Atlas for the shader: R = shading (lit 1, crescent 0.77), G = highlight, A = coverage; transparent texels bled */
+function buildAtlas() {
+  const c = document.createElement('canvas');
+  c.width = CELL * 8; c.height = CELL;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  for (const shape of [0, 1, 2, 3, 4, 5]) {
+    ctx.save(); ctx.translate(shape * CELL, 0);
+    drawShape(ctx, shape, 'rgb(255 0 0)', 'rgb(196 0 0)', 'rgb(255 255 0)');
+    ctx.restore();
+  }
+  const img = ctx.getImageData(0, 0, c.width, c.height);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) if (d[i + 3] === 0) { d[i] = 235; d[i + 1] = 0; }
+  return img;
+}
+
+function mixRgb(hex, k) {
+  const [r, g, b] = hexRgb(hex).map((v) => v * 255);
+  const t = k < 0 ? 0 : 255, f = Math.abs(k);
+  return `rgb(${Math.round(r + (t - r) * f)} ${Math.round(g + (t - g) * f)} ${Math.round(b + (t - b) * f)})`;
+}
+function scaleRgb(css, f) {
+  return css.replace(/\d+(\.\d+)?/g, (v) => String(Math.round(+v * f)));
+}
+
+/** Tinted sprites for the CPU renderers, cached per shape, color, side and theme */
+const spriteCache = new Map();
+function sprite(shape, color, back, dark, size = 32) {
+  const key = `${shape}|${color}|${back}|${dark}|${size}`;
+  let s = spriteCache.get(key);
+  if (s) return s;
+  s = document.createElement('canvas');
+  s.width = s.height = size;
+  const ctx = s.getContext('2d');
+  ctx.scale(size / CELL, size / CELL);
+  const base = dark ? mixRgb(color, 0.14) : mixRgb(color, 0);
+  const lit = back ? scaleRgb(base, 0.74) : base;
+  drawShape(ctx, shape, lit, scaleRgb(lit, 0.77), '#fff', back ? 0.15 : 1);
+  spriteCache.set(key, s);
+  return s;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+ * Renderers. Common surface: init() -> ms, add(particles), dissolve(t), sweep(t, x, y), cutRain(t), setDark(on),
+ * alive(), destroy(). `stats` collects the JavaScript time per frame.
+ * ------------------------------------------------------------------------------------------------------------- */
+const env = { h: innerHeight, w: innerWidth, dissolveAt: 1e9, sweepAt: 1e9, sweepX: 0, sweepY: 0, rainCut: 1e9, dark: false };
+/** Running totals; readers keep their own previous values and work with differences */
+const stats = { frames: 0, jsMs: 0, spawnMs: 0, initMs: 0 };
+let canvasEl = document.getElementById('confetti-canvas');
+const domEl = document.getElementById('confetti-dom');
+
+function sizeCanvas(canvas, max) {
+  const dpr = Math.min(devicePixelRatio || 1, max);
+  const w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr);
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  return dpr;
+}
+
+/** Runs `frame` on requestAnimationFrame while particles live; stops (and lets the caller release) when idle */
+class Loop {
+  constructor(frame, onIdle) { this.frame = frame; this.onIdle = onIdle; this.id = 0; this.until = 0; this.idleTimer = 0; }
+  extend(until) {
+    this.until = Math.max(this.until, until);
+    clearTimeout(this.idleTimer);
+    if (!this.id) this.id = requestAnimationFrame(this.tick);
+  }
+  tick = () => {
+    const t = now();
+    const t0 = performance.now();
+    this.frame(t);
+    const ms = performance.now() - t0;
+    stats.frames++; stats.jsMs += ms;
+    if (t < this.until || rain.on) this.id = requestAnimationFrame(this.tick);
+    else { this.id = 0; this.idleTimer = setTimeout(this.onIdle, 10000); }
+  };
+  stop() { cancelAnimationFrame(this.id); clearTimeout(this.idleTimer); this.id = 0; }
+}
+
+const VS = `
+precision highp float;
+attribute vec2 a_corner;
+attribute vec4 a_p, a_t, a_r, a_s, a_d, a_c;
+uniform float u_time, u_dissolveAt, u_sweepAt, u_rainCut, u_dark, u_reduced;
+// Shared with the fragment shader, so both must declare the same precision
+uniform mediump float u_halo;
+uniform vec2 u_view, u_sweep;
+varying vec2 v_uv; varying vec3 v_col; varying float v_alpha, v_back;
+void main() {
+  float tau = u_time - a_t.x;
+  float flags = a_s.w;
+  float burnable = mod(flags, 2.0);
+  float glow = mod(floor(flags / 2.0), 2.0);
+  float rain = floor(flags / 4.0);
+  if (tau < 0.0 || tau > a_t.y || (rain > 0.5 && a_t.x > u_rainCut) || (u_halo > 0.5 && glow * u_dark < 0.5)) {
+    gl_Position = vec4(-2.0, -2.0, 0.0, 1.0); return;
+  }
+  float k = a_t.z, vt = a_t.w;
+  float e = exp(-k * tau), om = (1.0 - e) / k;
+  vec2 pos = a_p.xy + vec2(a_p.z * om, vt * tau + (a_p.w - vt) * om);
+  pos.x += a_s.x * sin(a_s.y * tau + a_s.z) * (1.0 - e);
+  float fadeIn = mix(0.08, 0.25, u_reduced), fadeOut = mix(0.4, 0.5, u_reduced);
+  float alpha = clamp(tau / fadeIn, 0.0, 1.0) * clamp((a_t.y - tau) / fadeOut, 0.0, 1.0);
+  alpha *= clamp((u_view.y * 1.02 - pos.y) / (u_view.y * 0.2), 0.0, 1.0);
+  if (burnable < 0.5 && a_t.x < u_dissolveAt) alpha *= clamp(1.0 - (u_time - u_dissolveAt) / 0.6, 0.0, 1.0);
+  if (burnable > 0.5 && a_t.x < u_sweepAt && u_time > u_sweepAt) {
+    float ds = u_time - u_sweepAt;
+    vec2 d = pos - u_sweep;
+    pos += d / max(length(d), 1.0) * 1600.0 * ds * ds + vec2(0.0, 700.0 * ds * ds);
+    alpha *= clamp(1.0 - ds / 0.6, 0.0, 1.0);
+  }
+  float fl = cos(a_r.z + a_r.w * tau);
+  vec2 c; float cell;
+  if (u_halo > 0.5) {
+    c = a_corner * max(a_d.x, a_d.y) * 3.4;
+    cell = 5.0;
+    alpha *= 0.5 * (0.7 + 0.3 * sin(tau * 5.0 + a_s.z)) * (0.6 + 0.4 * abs(fl));
+  } else {
+    c = a_corner * a_d.xy;
+    c.y *= fl;
+    float rot = a_r.x + a_r.y * tau, cs = cos(rot), sn = sin(rot);
+    c = vec2(c.x * cs - c.y * sn, c.x * sn + c.y * cs);
+    cell = a_d.z;
+  }
+  pos += c;
+  v_uv = vec2((cell + a_corner.x + 0.5) / 8.0, a_corner.y + 0.5);
+  v_col = u_dark > 0.5 ? mix(a_c.rgb, vec3(1.0), 0.14) : a_c.rgb;
+  v_alpha = alpha;
+  v_back = fl < 0.0 ? 1.0 : 0.0;
+  vec2 clip = pos / u_view * 2.0 - 1.0;
+  gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
+}`;
+const FS = `
+precision mediump float;
+uniform sampler2D u_atlas;
+uniform mediump float u_halo;
+varying vec2 v_uv; varying vec3 v_col; varying float v_alpha, v_back;
+void main() {
+  // Slight negative LOD bias: the small sprites stay crisp instead of sampling a blurry mip level
+  vec4 s = texture2D(u_atlas, v_uv, -0.5);
+  float a = s.a * v_alpha;
+  if (u_halo > 0.5) { gl_FragColor = vec4(v_col * a, 0.0); return; }
+  float shade = s.r * mix(1.0, 0.74, v_back);
+  float hl = s.g * mix(1.0, 0.15, v_back);
+  gl_FragColor = vec4(mix(v_col * shade, vec3(1.0), hl) * a, a);
+}`;
+
+/** WebGL renderer: instanced quads, the trajectory is evaluated in the vertex shader */
+class GLRenderer {
+  static CAP = 2048;
+  static STRIDE = 24;
+  name = 'WebGL';
+  init() {
+    const t0 = performance.now();
+    // Software WebGL is slower than the 2D path: refuse it (?swgl allows it, for headless measurements)
+    const gl = canvasEl.getContext('webgl', { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false, powerPreference: 'low-power', failIfMajorPerformanceCaveat: !new URLSearchParams(location.search).has('swgl') });
+    const ext = gl && gl.getExtension('ANGLE_instanced_arrays');
+    if (!gl || !ext) return -1;
+    this.gl = gl; this.ext = ext;
+    const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+    const prog = gl.createProgram();
+    gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+    gl.useProgram(prog);
+    this.u = {};
+    for (const n of ['u_time', 'u_dissolveAt', 'u_sweepAt', 'u_rainCut', 'u_dark', 'u_halo', 'u_reduced', 'u_view', 'u_sweep', 'u_atlas']) this.u[n] = gl.getUniformLocation(prog, n);
+
+    const corner = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, corner);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-0.5, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, 0.5]), gl.STATIC_DRAW);
+    const aCorner = gl.getAttribLocation(prog, 'a_corner');
+    gl.enableVertexAttribArray(aCorner);
+    gl.vertexAttribPointer(aCorner, 2, gl.FLOAT, false, 0, 0);
+
+    this.data = new Float32Array(GLRenderer.CAP * GLRenderer.STRIDE);
+    this.buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
+    gl.bufferData(gl.ARRAY_BUFFER, this.data.byteLength, gl.DYNAMIC_DRAW);
+    ['a_p', 'a_t', 'a_r', 'a_s', 'a_d', 'a_c'].forEach((n, i) => {
+      const loc = gl.getAttribLocation(prog, n);
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, 4, gl.FLOAT, false, GLRenderer.STRIDE * 4, i * 16);
+      ext.vertexAttribDivisorANGLE(loc, 1);
+    });
+
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, buildAtlas());
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.uniform1i(this.u.u_atlas, 0);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+
+    this.next = 0; this.count = 0;
+    this.ends = new Float32Array(GLRenderer.CAP);
+    this.loop = new Loop((t) => this.frame(t), () => this.release());
+    canvasEl.hidden = false;
+    gl.finish();
+    return performance.now() - t0;
+  }
+  add(list) {
+    const { data, ends } = this, S = GLRenderer.STRIDE, CAP = GLRenderer.CAP;
+    const first = this.next;
+    let until = 0;
+    for (const p of list) {
+      const i = this.next % CAP, o = i * S;
+      data.set([p.x, p.y, p.vx, p.vy, p.t0, p.life, p.k, p.vt, p.rot0, p.spin, p.flip0, p.flip, p.amp, p.freq, p.phase, p.flags, p.w, p.h, p.shape, 0, p.rgb[0], p.rgb[1], p.rgb[2], 1], o);
+      ends[i] = p.t0 + p.life;
+      until = Math.max(until, ends[i]);
+      this.next++;
+    }
+    this.count = Math.min(CAP, this.next);
+    // Upload the written slots (two ranges when the ring wraps)
+    const gl = this.gl, a = first % CAP, n = list.length;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
+    if (n >= CAP) gl.bufferSubData(gl.ARRAY_BUFFER, 0, data);
+    else if (a + n <= CAP) gl.bufferSubData(gl.ARRAY_BUFFER, a * S * 4, data.subarray(a * S, (a + n) * S));
+    else {
+      gl.bufferSubData(gl.ARRAY_BUFFER, a * S * 4, data.subarray(a * S));
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, data.subarray(0, (a + n - CAP) * S));
+    }
+    this.loop.extend(until);
+  }
+  frame(t) {
+    const gl = this.gl, u = this.u;
+    const dpr = sizeCanvas(canvasEl, MAX_DPR.gl);
+    gl.viewport(0, 0, canvasEl.width, canvasEl.height);
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.uniform1f(u.u_time, t);
+    gl.uniform1f(u.u_dissolveAt, env.dissolveAt);
+    gl.uniform1f(u.u_sweepAt, env.sweepAt);
+    gl.uniform1f(u.u_rainCut, env.rainCut);
+    gl.uniform1f(u.u_dark, env.dark ? 1 : 0);
+    gl.uniform1f(u.u_reduced, settings.reduced ? 1 : 0);
+    gl.uniform2f(u.u_view, canvasEl.width / dpr, canvasEl.height / dpr);
+    gl.uniform2f(u.u_sweep, env.sweepX, env.sweepY);
+    if (env.dark) { gl.uniform1f(u.u_halo, 1); this.ext.drawArraysInstancedANGLE(gl.TRIANGLE_STRIP, 0, 4, this.count); }
+    gl.uniform1f(u.u_halo, 0);
+    this.ext.drawArraysInstancedANGLE(gl.TRIANGLE_STRIP, 0, 4, this.count);
+  }
+  release() {
+    // Idle: drop the full-window drawing buffer until the next burst
+    canvasEl.width = 1; canvasEl.height = 1;
+    this.next = 0; this.count = 0;
+  }
+  alive() { const t = now(); let n = 0; for (let i = 0; i < this.count; i++) { const o = i * GLRenderer.STRIDE; if (t >= this.data[o + 4] && t <= this.ends[i]) n++; } return n; }
+  extendTo(t) { this.loop.extend(t); }
+  destroy() { this.loop.stop(); this.gl.getExtension('WEBGL_lose_context')?.loseContext(); }
+}
+
+/** Canvas 2D renderer: the same formula evaluated in JavaScript, tinted sprites drawn with drawImage */
+class CanvasRenderer {
+  name = 'Canvas 2D';
+  init() {
+    const t0 = performance.now();
+    this.ctx = canvasEl.getContext('2d');
+    this.list = [];
+    this.loop = new Loop((t) => this.frame(t), () => this.release());
+    this.tmp = {};
+    // Warm the sprite cache for the rainbow colors
+    for (const c of RAINBOW) for (const s of [0, 1, 2, 3, 4]) { sprite(s, c, false, false); sprite(s, c, true, false); }
+    canvasEl.hidden = false;
+    return performance.now() - t0;
+  }
+  add(list) {
+    let until = 0;
+    for (const p of list) { this.list.push(p); until = Math.max(until, p.t0 + p.life); }
+    this.loop.extend(until);
+  }
+  frame(t) {
+    const ctx = this.ctx, dpr = sizeCanvas(canvasEl, MAX_DPR.cpu), out = this.tmp;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+    let write = 0;
+    const halos = env.dark ? [] : null;
+    for (const p of this.list) {
+      if (t - p.t0 > p.life) continue;
+      this.list[write++] = p;
+      if (!evaluate(p, t, env, out) || out.a <= 0.01) continue;
+      const cs = Math.cos(out.rot), sn = Math.sin(out.rot);
+      const sx = p.w / 32, sy = p.h / 32 * out.fl;
+      ctx.globalAlpha = out.a;
+      ctx.setTransform(dpr * cs * sx, dpr * sn * sx, -dpr * sn * sy, dpr * cs * sy, dpr * out.x, dpr * out.y);
+      ctx.drawImage(sprite(p.shape, p.color, out.fl < 0, env.dark), -16, -16);
+      if (halos && (p.flags & FLAG.glow)) halos.push(p, out.x, out.y, out.a, out.tau);
+    }
+    this.list.length = write;
+    if (halos && halos.length) {
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < halos.length; i += 5) {
+        const p = halos[i], m = Math.max(p.w, p.h) * 3.4;
+        ctx.globalAlpha = halos[i + 3] * 0.5 * (0.7 + 0.3 * Math.sin(halos[i + 4] * 5 + p.phase));
+        ctx.setTransform(dpr * m / 32, 0, 0, dpr * m / 32, dpr * halos[i + 1], dpr * halos[i + 2]);
+        ctx.drawImage(haloSprite(p.color), -16, -16);
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.globalAlpha = 1;
+  }
+  release() { canvasEl.width = 1; canvasEl.height = 1; }
+  alive() { return this.list.length; }
+  extendTo(t) { this.loop.extend(t); }
+  destroy() { this.loop.stop(); this.list = []; }
+}
+function haloSprite(color) {
+  const key = `halo|${color}`;
+  let s = spriteCache.get(key);
+  if (!s) {
+    s = document.createElement('canvas'); s.width = s.height = 32;
+    const ctx = s.getContext('2d'); ctx.scale(0.5, 0.5);
+    drawShape(ctx, SHAPE.halo, mixRgb(color, 0.14), '', '');
+    spriteCache.set(key, s);
+  }
+  return s;
+}
+
+/** DOM renderer for comparison: three nested elements per particle, all motion as Web Animations on the compositor */
+class DomRenderer {
+  name = 'DOM + WAAPI';
+  init() {
+    const t0 = performance.now();
+    domEl.hidden = false; canvasEl.hidden = true;
+    this.urls = new Map();
+    this.items = new Set();
+    for (const c of RAINBOW) for (const s of [0, 1, 2, 3, 4]) this.url(s, c);
+    this.tmp = {};
+    return performance.now() - t0;
+  }
+  url(shape, color) {
+    const key = `${shape}|${color}|${env.dark}`;
+    let u = this.urls.get(key);
+    if (!u) { u = sprite(shape, color, false, env.dark).toDataURL(); this.urls.set(key, u); }
+    return u;
+  }
+  add(list) {
+    const t = now(), out = this.tmp, frag = document.createDocumentFragment();
+    const quiet = { ...env, dissolveAt: 1e9, sweepAt: 1e9, rainCut: 1e9 };
+    for (const p of list) {
+      const outer = document.createElement('i'), spin = document.createElement('i'), face = document.createElement('i');
+      face.style.cssText = `width:${p.w}px;height:${p.h}px;margin:${-p.h / 2}px 0 0 ${-p.w / 2}px;background:url(${this.url(p.shape, p.color)}) 0 0/100% 100%`;
+      spin.append(face); outer.append(spin); frag.append(outer);
+      const n = Math.max(8, Math.min(48, Math.round(p.life * 10)));
+      const frames = [];
+      for (let i = 0; i <= n; i++) {
+        const s = evaluate(p, p.t0 + p.life * i / n, quiet, out) || { x: p.x, y: p.y, a: 0 };
+        frames.push({ transform: `translate(${s.x.toFixed(1)}px,${s.y.toFixed(1)}px)`, opacity: +s.a.toFixed(3) });
+      }
+      const timing = { duration: p.life * 1000, delay: Math.max(0, (p.t0 - t) * 1000), fill: 'both' };
+      const anim = outer.animate(frames, timing);
+      spin.animate([{ rotate: `${p.rot0}rad` }, { rotate: `${p.rot0 + p.spin * p.life}rad` }], timing);
+      if (p.flip) face.animate([{ transform: 'scaleY(1)' }, { transform: 'scaleY(-1)' }], { duration: Math.PI / p.flip * 1000, iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' });
+      const item = { p, outer, spin, anim };
+      this.items.add(item);
+      anim.onfinish = () => { outer.remove(); this.items.delete(item); };
+    }
+    domEl.append(frag);
+  }
+  fadeOut(match, translate) {
+    for (const item of this.items) {
+      if (!match(item.p)) continue;
+      item.spin.animate([{ opacity: 1, translate: '0 0' }, { opacity: 0, translate: translate ? translate(item) : '0 0' }], { duration: 600, fill: 'forwards', easing: 'ease-in' })
+        .onfinish = () => { item.outer.remove(); this.items.delete(item); };
+    }
+  }
+  dissolve(t) { this.fadeOut((p) => !(p.flags & FLAG.burnable) && p.t0 < t); }
+  sweep(t, x, y) {
+    this.fadeOut((p) => (p.flags & FLAG.burnable) && p.t0 < t, (item) => {
+      const s = evaluate(item.p, now(), { ...env, sweepAt: 1e9, dissolveAt: 1e9 }, {}) || item.p;
+      const dx = s.x - x, dy = s.y - y, len = Math.max(1, Math.hypot(dx, dy));
+      return `${(dx / len * 576).toFixed(0)}px ${(dy / len * 576 + 250).toFixed(0)}px`;
+    });
+  }
+  cutRain(t) {
+    for (const item of this.items) if ((item.p.flags & FLAG.rain) && item.p.t0 > t) { item.outer.remove(); this.items.delete(item); }
+  }
+  alive() { return this.items.size; }
+  extendTo() {}
+  destroy() { for (const item of this.items) item.outer.remove(); this.items.clear(); domEl.hidden = true; }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+ * Director: the three occasions on top of a renderer (this part becomes the app's API)
+ * ------------------------------------------------------------------------------------------------------------- */
+let renderer = null;
+const rain = { on: false, until: 0, timer: 0, rate: 14 };
+
+function setEngine(name) {
+  renderer?.destroy();
+  for (const k of ['dissolveAt', 'sweepAt', 'rainCut']) env[k] = 1e9;
+  // A canvas keeps the context type it was created with: swap in a fresh element
+  const fresh = canvasEl.cloneNode();
+  canvasEl.replaceWith(fresh);
+  canvasEl = fresh;
+  renderer = name === 'webgl' ? new GLRenderer() : name === 'canvas' ? new CanvasRenderer() : new DomRenderer();
+  let ms = renderer.init();
+  if (ms < 0) { renderer = new CanvasRenderer(); ms = renderer.init(); name = 'canvas'; }
+  if (name !== 'dom') domEl.hidden = true;
+  settings.engine = name;
+  stats.initMs = ms;
+  return ms;
+}
+
+function spawn(list) {
+  const t0 = performance.now();
+  renderer.add(list);
+  stats.spawnMs = performance.now() - t0;
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ...list.map((p) => p.t0 + p.life - now())) * 1000));
+}
+
+const count = (n) => (settings.reduced ? Math.ceil(n * 0.3) : n);
+
+/** 1 · Entering party mode: a light shower from the top plus a small fan out of the title. No sound. */
+function partyStart(titleRect) {
+  const t = now(), W = innerWidth, list = [];
+  for (let i = 0; i < count(64); i++) {
+    list.push(makeParticle({ x: rand(-10, W + 10), y: rand(-50, -12), vx: rand(-60, 60), vy: rand(30, 140), t0: t + rand(0, 0.7), k: 1.4 }));
+  }
+  const cx = titleRect.left + titleRect.width / 2, cy = titleRect.top + titleRect.height / 2;
+  for (let i = 0; i < count(14); i++) {
+    const a = rand(-Math.PI * 0.92, -Math.PI * 0.08), s = rand(260, 540);
+    list.push(makeParticle({ x: cx + rand(-titleRect.width / 3, titleRect.width / 3), y: cy, vx: Math.cos(a) * s, vy: Math.sin(a) * s, t0: t, k: 2.8 }));
+  }
+  return spawn(list);
+}
+
+/** Leaving party mode: title confetti still in the air fades out while it falls */
+function partyEnd() {
+  env.dissolveAt = now();
+  renderer.dissolve?.(env.dissolveAt);
+  renderer.extendTo(env.dissolveAt + 0.7);
+}
+
+/** 2 · Balloon pop: pieces mostly in the balloon's color spray out of its center */
+function balloonPop(x, y, color) {
+  const t = now(), list = [];
+  for (let i = 0; i < count(44); i++) {
+    const a = rand(0, Math.PI * 2), s = rand(200, 640);
+    list.push(makeParticle({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 80, t0: t, k: 3.4, color: Math.random() < 0.7 ? color : pick(RAINBOW) }));
+  }
+  sound.pop();
+  return spawn(list);
+}
+
+/** 3 · Timer end: a big burst out of the dial's ring; in party mode it keeps raining until interrupted */
+function timerEnd(dialRect, party) {
+  const t = now(), list = [];
+  const cx = dialRect.left + dialRect.width / 2, cy = dialRect.top + dialRect.height / 2, R = dialRect.width / 2;
+  for (let i = 0; i < count(200); i++) {
+    const a = rand(0, Math.PI * 2), r = rand(R * 0.4, R * 0.95), s = rand(320, 820);
+    list.push(makeParticle({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 140, t0: t + rand(0, 0.05), k: 2.7, burnable: true, color: RAINBOW[i % RAINBOW.length] }));
+  }
+  sound.horn(true);
+  if (party && !settings.reduced) setRain(true);
+  return spawn(list);
+}
+
+function setRain(on) {
+  clearInterval(rain.timer);
+  rain.on = on;
+  if (!on) { env.rainCut = now(); renderer.cutRain?.(env.rainCut); return; }
+  env.rainCut = 1e9;
+  rain.until = now() + 0.3;
+  // Rain is scheduled ahead in one-second batches with future start times: no per-frame work on the CPU
+  const schedule = () => {
+    const end = now() + 1.5, list = [], W = innerWidth;
+    for (let t = rain.until; t < end; t += 1 / rain.rate) {
+      list.push(makeParticle({ x: rand(0, W), y: rand(-40, -15), vx: rand(-30, 30), vy: rand(20, 90), t0: t + rand(0, 1 / rain.rate), k: 1.2, burnable: true, rain: true }));
+    }
+    rain.until = end;
+    if (list.length) renderer.add(list);
+  };
+  schedule();
+  rain.timer = setInterval(schedule, 1000);
+}
+
+/** A tap during the celebration: rain stops, a gust from the tap blows the celebration away, the horn stops */
+function interrupt(x, y) {
+  setRain(false);
+  env.sweepAt = now(); env.sweepX = x; env.sweepY = y;
+  renderer.sweep?.(env.sweepAt, x, y);
+  renderer.extendTo(env.sweepAt + 0.7);
+  sound.horn(false);
+  const t = now(), list = [];
+  for (let i = 0; i < count(16); i++) {
+    const a = rand(0, Math.PI * 2), s = rand(140, 400);
+    list.push(makeParticle({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, t0: t, k: 3.6 }));
+  }
+  return spawn(list);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+ * Sound: a short synthetic pop for balloons, the party horn for the timer end
+ * ------------------------------------------------------------------------------------------------------------- */
+const sound = {
+  ctx: null, noise: null, hornEl: null,
+  audio() {
+    if (!this.ctx) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new Ctx();
+      const n = Math.floor(this.ctx.sampleRate * 0.12);
+      this.noise = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
+      const d = this.noise.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2);
+    }
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    return this.ctx;
+  },
+  pop() {
+    if (!settings.sound) return;
+    const ctx = this.audio(), t = ctx.currentTime;
+    // Snap: band-passed noise with a very fast decay
+    const src = ctx.createBufferSource(); src.buffer = this.noise;
+    const band = ctx.createBiquadFilter(); band.type = 'bandpass'; band.frequency.setValueAtTime(2400, t); band.frequency.exponentialRampToValueAtTime(900, t + 0.08); band.Q.value = 0.8;
+    const g = ctx.createGain(); g.gain.setValueAtTime(1.1, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    src.connect(band).connect(g).connect(ctx.destination); src.start(t);
+    // Body: a short falling thump
+    const osc = ctx.createOscillator(); osc.type = 'sine'; osc.frequency.setValueAtTime(190, t); osc.frequency.exponentialRampToValueAtTime(60, t + 0.09);
+    const og = ctx.createGain(); og.gain.setValueAtTime(0.55, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    osc.connect(og).connect(ctx.destination); osc.start(t); osc.stop(t + 0.13);
+  },
+  horn(on) {
+    if (!this.hornEl) {
+      this.hornEl = new Audio('party-horn.mp3');
+      this.hornEl.loop = true;
+      // In the repository the file lives in public/
+      this.hornEl.addEventListener('error', () => { if (!this.hornEl.src.includes('/public/')) this.hornEl.src = '../../public/party-horn.mp3'; }, { once: true });
+    }
+    if (on && settings.sound) { this.hornEl.currentTime = 0; this.hornEl.play().catch(() => {}); }
+    else this.hornEl.pause();
+  },
+};
+addEventListener('pointerdown', () => sound.audio(), { once: true, capture: true });
+
+/* ---------------------------------------------------------------------------------------------------------------
+ * Page: stage, controls, frame meter, simulated load
+ * ------------------------------------------------------------------------------------------------------------- */
+const $ = (id) => document.getElementById(id);
+let party = false, celebrating = false, countdown = 0;
+
+function setParty(on) {
+  party = on;
+  $('title').setAttribute('aria-pressed', on); $('btn-party').setAttribute('aria-pressed', on);
+  $('title-word').textContent = on ? 'Party' : 'Timer';
+  if (on) partyStart($('title').getBoundingClientRect());
+  else partyEnd();
+  if (!on && celebrating) setRain(false);
+}
+$('title').addEventListener('click', () => setParty(!party));
+$('btn-party').addEventListener('click', () => setParty(!party));
+
+function startCelebration() {
+  celebrating = true;
+  $('dial').classList.add('is-ringing');
+  $('dial-time').textContent = '0:00';
+  $('hint').textContent = 'Feier läuft · irgendwo tippen zum Beenden';
+  $('hint').classList.add('is-live');
+  timerEnd($('dial').getBoundingClientRect(), party);
+}
+function stopCelebration(x, y) {
+  celebrating = false;
+  $('dial').classList.remove('is-ringing');
+  $('dial-time').textContent = '0:05';
+  $('hint').textContent = 'Titel antippen: Party an oder aus · Ballon antippen: platzen lassen';
+  $('hint').classList.remove('is-live');
+  interrupt(x, y);
+}
+$('btn-end').addEventListener('click', (e) => { e.stopPropagation(); clearInterval(countdown); startCelebration(); });
+$('btn-countdown').addEventListener('click', (e) => {
+  e.stopPropagation();
+  clearInterval(countdown);
+  let s = 5;
+  $('dial-time').textContent = `0:0${s}`;
+  countdown = setInterval(() => {
+    s--;
+    $('dial-time').textContent = `0:0${s}`;
+    if (s === 0) { clearInterval(countdown); startCelebration(); }
+  }, 1000);
+});
+// Any tap anywhere ends a running celebration (as in the app)
+document.addEventListener('pointerdown', (e) => {
+  if (!celebrating || e.target.closest('#btn-end, #btn-countdown')) return;
+  stopCelebration(e.clientX, e.clientY);
+}, { capture: true });
+
+/* Balloons */
+let balloonId = 0;
+function balloonSvg(color) {
+  const id = `b${++balloonId}`;
+  const body = 'M50 4 C82 4 96 30 96 58 C96 90 70 110 53 113 L47 113 C30 110 4 90 4 58 C4 30 18 4 50 4 Z';
+  return `<svg viewBox="0 0 100 190" aria-hidden="true"><g class="bob" style="--bob:${rand(2.6, 3.6).toFixed(2)}s">
+    <path class="str" d="M50 113 C 40 132, 62 150, 48 166 S 56 182, 50 190" fill="none" stroke-width="2"/>
+    <g class="body"><clipPath id="${id}"><path d="${body}"/></clipPath>
+    <path d="${body}" fill="${color}"/><path d="${body}" fill="#000" opacity=".14"/>
+    <g clip-path="url(#${id})"><path d="${body}" fill="${color}" transform="translate(-5 -4)"/></g>
+    <path d="M47 113 L53 113 L56 120 L44 120 Z" fill="${color}"/>
+    <ellipse cx="30" cy="34" rx="9" ry="16" transform="rotate(-30 30 34)" fill="#fff" opacity=".45"/>
+    <circle cx="44" cy="20" r="3.2" fill="#fff" opacity=".6"/></g></g></svg>`;
+}
+function addBalloon(slot, fresh) {
+  const color = pick(BALLOON_COLORS);
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'balloon' + (fresh ? ' is-fresh' : ''); b.dataset.color = color;
+  b.setAttribute('aria-label', 'Ballon platzen lassen');
+  b.innerHTML = balloonSvg(color);
+  b.addEventListener('click', () => {
+    if (b.classList.contains('is-popping')) return;
+    const r = b.querySelector('.body').getBoundingClientRect();
+    b.classList.add('is-popping');
+    balloonPop(r.left + r.width / 2, r.top + r.height / 2, color);
+    setTimeout(() => { const next = addBalloon(slot, true); b.replaceWith(next); }, 1100);
+  });
+  return b;
+}
+for (const id of ['balloons-left', 'balloons-right']) {
+  const slot = $(id);
+  slot.append(addBalloon(slot), addBalloon(slot));
+}
+
+/* Segmented controls */
+function seg(id, onChange) {
+  const el = $(id);
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    el.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', x === b));
+    onChange(b.dataset.v);
+  });
+}
+const ENGINE_INFO = {
+  webgl: 'Vorschlag. Ein Draw-Call pro Frame, Flugbahnen im Shader, JavaScript-Aufwand unabhängig von der Teilchenzahl.',
+  canvas: 'Rückfallebene ohne WebGL. Gleiche Formel und Optik, aber pro Teilchen ein drawImage im JavaScript.',
+  dom: 'Nur zum Vergleich: läuft bei Hängern weiter, kostet aber beim Auslösen viel Zeit und viele Compositor-Layer. Vereinfachte Optik (keine Rückseite, kein Leuchten).',
+};
+seg('look', (v) => { settings.look = v; $('look-info').textContent = LOOKS[v].info; });
+seg('engine', (v) => { setEngine(v); $('engine-info').textContent = ENGINE_INFO[settings.engine] + ` Init: ${stats.initMs.toFixed(1)} ms.`; });
+seg('theme', (v) => {
+  if (v === 'auto') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.dataset.theme = v;
+  readTheme();
+});
+$('look-info').textContent = LOOKS.mix.info;
+$('sound').addEventListener('click', (e) => { settings.sound = !settings.sound; e.currentTarget.setAttribute('aria-pressed', settings.sound); e.currentTarget.textContent = settings.sound ? 'Sound an' : 'Sound aus'; if (!settings.sound) sound.horn(false); });
+$('reduced').setAttribute('aria-pressed', settings.reduced);
+$('reduced').addEventListener('click', (e) => { settings.reduced = !settings.reduced; e.currentTarget.setAttribute('aria-pressed', settings.reduced); });
+
+const darkQuery = matchMedia('(prefers-color-scheme: dark)');
+function readTheme() {
+  const attr = document.documentElement.dataset.theme;
+  env.dark = attr ? attr === 'dark' : darkQuery.matches;
+  if (renderer instanceof DomRenderer) renderer.urls.clear();
+}
+darkQuery.addEventListener('change', readTheme);
+addEventListener('resize', () => { env.h = innerHeight; env.w = innerWidth; });
+
+/* Simulated load */
+const busy = (ms) => { const end = performance.now() + ms; while (performance.now() < end); };
+let loadTimer = 0;
+$('load').addEventListener('input', (e) => {
+  const ms = +e.target.value;
+  $('load-val').textContent = ms ? `${ms} ms / 100 ms` : 'aus';
+  clearInterval(loadTimer);
+  if (ms) loadTimer = setInterval(() => busy(ms), 100);
+});
+$('hitch').addEventListener('click', () => setTimeout(() => busy(400), 50));
+$('party-hitch').addEventListener('click', () => {
+  if (party) setParty(false);
+  setParty(true);
+  // Three staged mount slices like the decoration
+  let n = 0;
+  const slice = () => { busy(120); if (++n < 3) requestAnimationFrame(slice); };
+  requestAnimationFrame(slice);
+});
+
+/* Frame meter: frame intervals of the main thread over the last two seconds */
+const meter = { times: [], last: 0, frames: 0, jsMs: 0, graph: $('meter-graph').getContext('2d') };
+function meterTick(ts) {
+  if (meter.last) meter.times.push(ts - meter.last);
+  meter.last = ts;
+  if (meter.times.length > 120) meter.times.shift();
+  requestAnimationFrame(meterTick);
+}
+setInterval(() => {
+  const t = meter.times;
+  if (!t.length) return;
+  const sorted = [...t].sort((a, b) => a - b);
+  const avg = t.reduce((a, b) => a + b, 0) / t.length;
+  const p95 = sorted[Math.floor(sorted.length * 0.95)], max = sorted[sorted.length - 1];
+  const cls = (v) => (v < 20 ? 'ok' : v < 34 ? 'meh' : 'bad');
+  $('meter-a').innerHTML = `<span class="${cls(avg)}">${(1000 / avg).toFixed(0)} fps</span> · p95 <span class="${cls(p95)}">${p95.toFixed(0)} ms</span> · max <span class="${cls(max)}">${max.toFixed(0)} ms</span>`;
+  const frames = stats.frames - meter.frames, js = frames ? (stats.jsMs - meter.jsMs) / frames : 0;
+  meter.frames = stats.frames; meter.jsMs = stats.jsMs;
+  $('meter-b').textContent = `${renderer.name} · ${renderer.alive()} Teilchen · JS ${js.toFixed(2)} ms/Frame`;
+  const g = meter.graph, W = 320, H = 56;
+  g.clearRect(0, 0, W, H);
+  const step = W / 120;
+  t.forEach((v, i) => {
+    g.fillStyle = v < 20 ? '#3aa860' : v < 34 ? '#e8a020' : '#e0405a';
+    const h = Math.min(H, v / 66 * H);
+    g.fillRect(i * step, H - h, Math.max(1, step - 0.5), h);
+  });
+  g.fillStyle = 'rgb(128 128 128 / .5)'; g.fillRect(0, H - 16.7 / 66 * H, W, 1);
+}, 250);
+requestAnimationFrame(meterTick);
+
+/* Measurements (filled from the benchmark run) */
+const BENCH = window.BENCH_RESULTS || null;
+function renderBench() {
+  const tb = $('bench-table').querySelector('tbody');
+  if (!BENCH) { tb.innerHTML = '<tr><td colspan="8">Noch keine Messung eingetragen.</td></tr>'; return; }
+  tb.innerHTML = BENCH.rows.map((r) => `<tr class="${r.pick ? 'pick' : ''}"><td>${r.name}</td><td>${r.init}</td><td>${r.spawn}</td><td>${r.frame}</td><td>${r.p95}</td><td>${r.rain}</td><td>${r.deco}</td><td>${r.hitch}</td></tr>`).join('');
+  $('bench-note').textContent = BENCH.note;
+}
+
+readTheme();
+setEngine(new URLSearchParams(location.search).get('engine') || 'webgl');
+$('engine').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', x.dataset.v === settings.engine));
+$('engine-info').textContent = ENGINE_INFO[settings.engine] + ` Init: ${stats.initMs.toFixed(1)} ms.`;
+renderBench();
+
+// Hooks for the benchmark script
+window.mock = { setEngine, partyStart, partyEnd, balloonPop, timerEnd, interrupt, setRain, stats, settings, env, get renderer() { return renderer; }, busy };
+</script>
