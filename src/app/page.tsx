@@ -8,6 +8,7 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { ConfettiLayer, confetti } from '@/components/confetti';
+import { sounds } from '@/lib/sounds';
 
 export default function Home() {
   const [manualFullscreen, setManualFullscreen] = useState(false);
@@ -15,7 +16,6 @@ export default function Home() {
   const [isPartyMode, setIsPartyMode] = useState(false);
   
   const titleRef = useRef<HTMLDivElement>(null);
-  const [titleBangTrigger, setTitleBangTrigger] = useState(0);
 
   const [isTitleAndFooterVisible, setIsTitleAndFooterVisible] = useState(true);
   const [isTimerInFullscreen, setIsTimerInFullscreen] = useState(false);
@@ -69,13 +69,11 @@ export default function Home() {
 
   const handleTitleBurst = (x: number, y: number) => {
     const enteringParty = !isPartyMode;
-    setTitleBangTrigger(Date.now());
     if (enteringParty) {
-      // A short, light sprinkle: a small burst at the tap plus a few pieces falling from the top
-      confetti.pointBurst({ x, y }, 18);
-      confetti.shower(55);
+      const rect = titleRef.current?.getBoundingClientRect() ?? new DOMRect(x, y, 0, 0);
+      confetti.partyStart(rect);
     } else {
-      confetti.dissolve();
+      confetti.partyEnd();
     }
     setIsPartyMode(enteringParty);
     // Squash-and-stretch release of the title button
@@ -87,18 +85,12 @@ export default function Home() {
     }
   };
 
-  const handleBalloonPop = useCallback((x: number, y: number) => {
-    confetti.pointBurst({ x, y }, 60);
-    setTitleBangTrigger(Date.now());
+  const handleBalloonPop = useCallback((x: number, y: number, color: string) => {
+    confetti.balloonPop(x, y, color);
+    sounds.pop();
   }, []);
 
   const handleTitleClick = (e: React.MouseEvent<HTMLDivElement>) => handleTitleBurst(e.clientX, e.clientY);
-  
-  const handleInterruptCelebration = useCallback((e: MouseEvent | TouchEvent) => {
-    const point = 'touches' in e ? (e.touches[0] ?? e.changedTouches[0]) : e;
-    if (point) confetti.pointBurst({ x: point.clientX, y: point.clientY });
-    setTitleBangTrigger(Date.now());
-  }, []);
 
   return (
     <main className="relative h-dvh w-full overflow-hidden">
@@ -141,8 +133,6 @@ export default function Home() {
         onFullscreenChange={setManualFullscreen}
         isPartyMode={isPartyMode}
         isForcedFullscreen={isForcedFullscreen}
-        titleBangTrigger={titleBangTrigger}
-        onInterruptCelebration={handleInterruptCelebration}
         titleRef={titleRef}
       />
 

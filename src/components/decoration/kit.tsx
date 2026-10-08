@@ -1,5 +1,5 @@
 import { Fragment, useId, type CSSProperties, type ReactNode } from 'react';
-import { RAINBOW_COLORS } from '../confetti';
+import { RAINBOW_COLORS } from '@/lib/palette';
 
 /*
  * Shared pieces of the party decoration variants: layout, seeded randomness, garland and streamer geometry,

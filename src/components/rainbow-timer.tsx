@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Maximize, Minimize, Volume2, VolumeX } from 'lucide-react';
-import { confetti, RAINBOW_COLORS } from './confetti';
+import { confetti } from './confetti';
+import { RAINBOW_COLORS } from '@/lib/palette';
+import { sounds } from '@/lib/sounds';
 import { cn } from '@/lib/utils';
 import { TimeUnitSwitch } from './time-unit-switch';
 import { Dial, type HubContent, type Particle } from './timer/dial';
@@ -11,7 +13,6 @@ import {
     angleToMs, msToAngle, snapAngle, polarToCartesian,
     formatClock, formatSetValue, formatSpoken,
 } from './timer/geometry';
-import { useTimerAudio } from './timer/use-timer-audio';
 import { useAnimatedProgress } from './timer/use-animated-progress';
 import {
   requestNotificationPermissions,
@@ -45,6 +46,12 @@ interface StoredTimer {
     unit?: TimeUnit;
 }
 
+/** Position of a mouse click or touch */
+const tapPoint = (e: MouseEvent | TouchEvent) => {
+    const p = 'touches' in e ? (e.touches[0] ?? e.changedTouches[0]) : e;
+    return p ? { x: p.clientX, y: p.clientY } : null;
+};
+
 const writeStorage = (data: StoredTimer | null) => {
     try {
         if (data) localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(data));
@@ -66,12 +73,10 @@ interface RainbowTimerProps {
     onFullscreenChange: (isFs: boolean) => void;
     isPartyMode: boolean;
     isForcedFullscreen: boolean;
-    titleBangTrigger: number;
-    onInterruptCelebration: (e: MouseEvent | TouchEvent) => void;
     titleRef: React.RefObject<HTMLDivElement | null>;
 }
 
-export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, isForcedFullscreen, titleBangTrigger, onInterruptCelebration, titleRef }: RainbowTimerProps) {
+export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, isForcedFullscreen, titleRef }: RainbowTimerProps) {
     const [hasMounted, setHasMounted] = useState(false);
     const [angle, setAngle] = useState(0);
     const angleRef = useRef(angle);
@@ -108,14 +113,14 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     const [isAlarmPlaying, setIsAlarmPlaying] = useState(false);
     const [isRaining, setIsRaining] = useState(false);
     const [isCelebrating, setIsCelebrating] = useState(false);
-    const { initializeAudio, playBang, playBeep } = useTimerAudio(isMuted, isAlarmPlaying);
+    useEffect(() => { sounds.setMuted(isMuted); }, [isMuted]);
 
     const interruptedRef = useRef(false);
     // Set when the app returns to foreground and the timer already expired in background.
     // Cleared once the countdown loop picks it up.
     const timerExpiredInBgRef = useRef(false);
     // Set for the duration of a celebration that was triggered by a background expiry.
-    // Suppresses the looping alarm and the onInterruptCelebration confetti burst.
+    // Suppresses the looping alarm.
     const silentCelebrationRef = useRef(false);
 
     const celebrationRef = useRef({ isAlarmPlaying, isCelebrating, animationState, isRaining });
@@ -161,33 +166,26 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     const explosionCounterRef = useRef(0);
     const prevTimeUnitRef = useRef<TimeUnit>('min');
 
-    const onInterruptCelebrationRef = useRef(onInterruptCelebration);
-    onInterruptCelebrationRef.current = onInterruptCelebration;
-
     // --- Celebration -------------------------------------------------------------------
 
     const stopCelebrationAndReset = useCallback((e?: MouseEvent | TouchEvent | React.MouseEvent | React.TouchEvent) => {
         if (!isCelebrationInProgress()) return;
 
-        const isSilent = silentCelebrationRef.current;
         silentCelebrationRef.current = false;
 
+        // The gust starts at the tap; without a tap position (keyboard, title click) at the center of the dial
         const isTitleClick = e && titleRef.current?.contains(e.target as Node);
-
-        if (!isSilent) {
-            if (e && !isTitleClick) {
-                onInterruptCelebrationRef.current(('nativeEvent' in e ? e.nativeEvent : e) as MouseEvent | TouchEvent);
-            } else {
-                playBang();
-            }
-        }
+        const tap = e && !isTitleClick ? tapPoint(('nativeEvent' in e ? e.nativeEvent : e) as MouseEvent | TouchEvent) : null;
+        const rect = containerRef.current?.getBoundingClientRect();
+        const origin = tap ?? (rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : { x: window.innerWidth / 2, y: window.innerHeight / 2 });
 
         interruptedRef.current = true;
         setIsCelebrating(false);
         setIsAlarmPlaying(false);
         setAnimationState('idle');
         setIsRaining(false);
-        confetti.interrupt();
+        confetti.interrupt(origin.x, origin.y);
+        sounds.horn(false);
 
         if (interruptTimeoutRef.current) clearTimeout(interruptTimeoutRef.current);
         interruptTimeoutRef.current = setTimeout(() => {
@@ -195,19 +193,16 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             interruptTimeoutRef.current = null;
         }, 2000);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [titleRef, playBang]);
+    }, [titleRef]);
 
     const celebrate = useCallback((silent: boolean) => {
         silentCelebrationRef.current = silent;
-        if (!silent) playBang();
-
         const burstId = ++burstIdRef.current;
         const rect = containerRef.current?.getBoundingClientRect();
         setAnimationState('bursting');
         setIsCelebrating(true);
         if (rect) {
-            const half = rect.width / 2;
-            confetti.ringBurst({ x: rect.left + half, y: rect.top + half }, half * 0.375, half * 0.79).then(() => {
+            confetti.timerEnd(rect).then(() => {
                 if (burstIdRef.current === burstId) setAnimationState('idle');
             });
         } else {
@@ -217,13 +212,10 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         if (isPartyModeRef.current) setIsRaining(true);
 
         if (!silent) {
-            setTimeout(() => {
-                if (celebrationRef.current.isCelebrating && !interruptedRef.current) {
-                    setIsAlarmPlaying(true);
-                }
-            }, 200);
+            sounds.horn(true);
+            setIsAlarmPlaying(true);
         }
-    }, [playBang]);
+    }, []);
 
     useEffect(() => {
         confetti.setRaining(isRaining);
@@ -565,9 +557,9 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         lastDragAngle.current = null;
 
         // Fire-and-forget: audio init must not block drag start
-        initializeAudio();
+        void sounds.warmUp();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [pauseTimer, cancelSettingAnimations, resetAutoSwitchMode, stopCelebrationAndReset, initializeAudio]);
+    }, [pauseTimer, cancelSettingAnimations, resetAutoSwitchMode, stopCelebrationAndReset]);
 
     const handleInteractionMove = useCallback((e: MouseEvent | TouchEvent) => {
       if (!isDraggingRef.current || !containerRef.current) return;
@@ -701,7 +693,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
       } catch {}
 
       if (!newMutedState) {
-        const audioReady = await initializeAudio();
+        const audioReady = await sounds.warmUp();
         if (audioReady && isNativePlatform()) {
             await requestNotificationPermissions();
             // Re-schedule notification if timer is running
@@ -810,7 +802,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             if (remaining > 0 && remaining <= 5000 && (isDetailViewRef.current || unit === 'sec')) {
                 const currentSecond = Math.ceil(remaining / 1000);
                 if (lastTickSecond.current !== currentSecond) {
-                    playBeep();
+                    sounds.beep();
                     lastTickSecond.current = currentSecond;
                 }
             }
@@ -848,7 +840,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             isCancelled = true;
             if (countdownFrameId.current) cancelAnimationFrame(countdownFrameId.current);
         };
-    }, [timeData, playBeep, resetAutoSwitchMode, celebrate, isTransitioningToAutoSec, isTransitioningToAutoMin]);
+    }, [timeData, resetAutoSwitchMode, celebrate, isTransitioningToAutoSec, isTransitioningToAutoMin]);
 
     // Transition into an auto mode: sweep the rainbow to 0, then show the remaining time
     // on the finer scale (min → sec or hr → min).
@@ -904,10 +896,6 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             }
         };
     }, [isTransitioningToAutoSec, isTransitioningToAutoMin]);
-
-    useEffect(() => {
-        if (titleBangTrigger > 0) playBang();
-    }, [titleBangTrigger, playBang]);
 
     useEffect(() => () => {
         if (interruptTimeoutRef.current) clearTimeout(interruptTimeoutRef.current);

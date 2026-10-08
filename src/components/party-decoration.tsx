@@ -141,7 +141,7 @@ const DecoView = memo(function DecoView({ deco, exiting }: { deco: Deco; exiting
     );
 });
 
-function SceneView({ scene, onPop }: { scene: Scene; onPop: (index: number, x: number, y: number) => void }) {
+function SceneView({ scene, onPop }: { scene: Scene; onPop: (index: number, x: number, y: number, color: string) => void }) {
     const exiting = scene.exitedAt !== null;
     // The balloons follow the decoration's two stages
     const stage = useStage(3, scene.decos[0].layout.base < 0);
@@ -163,7 +163,7 @@ function SceneView({ scene, onPop }: { scene: Scene; onPop: (index: number, x: n
                                 <g className="party-balloon-body" onPointerDown={(e) => {
                                     if (exiting || b.popping) return;
                                     const r = e.currentTarget.getBoundingClientRect();
-                                    onPop(i, r.left + r.width / 2, r.top + r.height / 2);
+                                    onPop(i, r.left + r.width / 2, r.top + r.height / 2, b.shape.fixedColor ?? b.color);
                                 }}>
                                     <b.shape.Body color={b.color} />
                                 </g>
@@ -192,7 +192,7 @@ interface PartyDecorationProps {
     /** Element the garland's pennants keep clear of (the title) */
     avoidRef?: React.RefObject<HTMLElement | null>;
     /** Called with the center of a balloon popped by a click (for sound and confetti) */
-    onBalloonPop?: (x: number, y: number) => void;
+    onBalloonPop?: (x: number, y: number, color: string) => void;
 }
 
 export function PartyDecoration({ active, visible, avoidRef, onBalloonPop }: PartyDecorationProps) {
@@ -211,8 +211,8 @@ export function PartyDecoration({ active, visible, avoidRef, onBalloonPop }: Par
             : sc)));
 
     // A clicked balloon bursts, then a new one floats into its place
-    const popBalloon = (sceneId: number, index: number, x: number, y: number) => {
-        onBalloonPop?.(x, y);
+    const popBalloon = (sceneId: number, index: number, x: number, y: number, color: string) => {
+        onBalloonPop?.(x, y, color);
         updateBalloon(sceneId, index, (b) => ({ ...b, popping: true }));
         const t = setTimeout(() => {
             respawnTimers.current.delete(t);
@@ -290,7 +290,7 @@ export function PartyDecoration({ active, visible, avoidRef, onBalloonPop }: Par
     if (!scenes.length) return null;
     return (
         <div aria-hidden="true" className={cn('transition-opacity duration-200', !visible && 'opacity-0 is-hidden')}>
-            {scenes.map((scene) => <SceneView key={scene.id} scene={scene} onPop={(i, x, y) => popBalloon(scene.id, i, x, y)} />)}
+            {scenes.map((scene) => <SceneView key={scene.id} scene={scene} onPop={(i, x, y, color) => popBalloon(scene.id, i, x, y, color)} />)}
         </div>
     );
 }

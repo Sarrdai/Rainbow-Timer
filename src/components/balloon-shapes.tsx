@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from 'react';
-import { RAINBOW_COLORS } from './confetti';
+import { RAINBOW_COLORS } from '@/lib/palette';
 
 /*
  * Balloon shapes for the party decoration. Every shape is drawn in the same 100×300 box as the classic
