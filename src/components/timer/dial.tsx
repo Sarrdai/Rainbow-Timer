@@ -1,6 +1,7 @@
 "use client";
 
 import React, { memo } from 'react';
+import { cn } from '@/lib/utils';
 import {
     CENTER, DIAL_RADIUS, HUB_RADIUS, KNOB_ACTIVE_RADIUS, KNOB_RADIUS, LABEL_RADIUS, RING_RADII,
     TICK_END_RADIUS, TICK_START_RADIUS, BAND_WIDTH, labelColor, polarToCartesian, ringColor,
@@ -17,7 +18,11 @@ export interface Particle {
 export type HubContent =
     | { kind: 'empty' }
     | { kind: 'set'; value: string; unit: string }
-    | { kind: 'clock'; value: string; paused: boolean };
+    | { kind: 'clock'; value: string; paused: boolean }
+    | { kind: 'hint'; mode: 'ghost' | 'wave' };
+
+/** First-run hint: `ghost` sweeps a handle clockwise, `wave` pulses the numbers; both play twice. */
+export type DialHint = 'ghost' | 'wave' | 'none';
 
 const INK = 'var(--dial-ink)';
 const RING_CIRCUMFERENCES = RING_RADII.map(r => 2 * Math.PI * r);
@@ -26,11 +31,12 @@ const NO_POINTER: React.CSSProperties = { pointerEvents: 'none' };
 interface MarkingsProps {
     secModeProgress: number;
     hrModeProgress: number;
+    waveHint: boolean;
     onQuickSet: (e: React.MouseEvent | React.TouchEvent, minValue: number) => void;
 }
 
 /** Static dial face: background, ticks and numbers. Only re-renders on mode transitions. */
-const DialMarkings = memo(function DialMarkings({ secModeProgress, hrModeProgress, onQuickSet }: MarkingsProps) {
+const DialMarkings = memo(function DialMarkings({ secModeProgress, hrModeProgress, waveHint, onQuickSet }: MarkingsProps) {
     return (
         <>
             <circle cx={CENTER} cy={CENTER} r={DIAL_RADIUS} style={{ fill: 'var(--dial-face)', pointerEvents: 'none' }} />
@@ -70,8 +76,8 @@ const DialMarkings = memo(function DialMarkings({ secModeProgress, hrModeProgres
                             textAnchor="middle" dominantBaseline="middle"
                             fontWeight="bold" fontSize="14"
                             opacity={1 - hrModeProgress}
-                            className="transition-transform duration-150 ease-in-out group-hover:scale-125 group-active:scale-90"
-                            style={labelStyle}
+                            className={cn("transition-transform duration-150 ease-in-out group-hover:scale-125 group-active:scale-90", waveHint && "dial-hint-wave")}
+                            style={waveHint ? { ...labelStyle, animationDelay: `${(i + 1) * 0.14}s` } : labelStyle}
                         >
                             {minValue === 60 ? (
                                 <>
@@ -169,6 +175,47 @@ function RainbowArcs({ angle, elapsed }: { angle: number; elapsed: boolean }) {
     );
 }
 
+/** Ghost handle and faint rainbow sweeping clockwise from 12 o'clock (two plays, then gone). */
+const GhostHint = memo(function GhostHint() {
+    const top = polarToCartesian(DIAL_RADIUS, 0);
+    const chevron = polarToCartesian(DIAL_RADIUS, 9);
+    return (
+        <g style={NO_POINTER}>
+            <g transform={`rotate(-90 ${CENTER} ${CENTER})`}>
+                {RING_RADII.map((radius, i) => (
+                    <circle key={i} cx={CENTER} cy={CENTER} r={radius} fill="none" pathLength={100}
+                        className="dial-hint-sweep" style={{ stroke: ringColor(i) }}
+                        strokeWidth={BAND_WIDTH + 0.5} strokeDasharray="0 100" />
+                ))}
+            </g>
+            <g className="dial-hint-invite">
+                <circle cx={top.x} cy={top.y} r={KNOB_RADIUS} fill="none" className="dial-hint-ripple" style={{ stroke: 'var(--knob-stroke)' }} strokeWidth="2" />
+                <g className="dial-hint-breathe">
+                    <circle cx={top.x} cy={top.y + 1.5} r={KNOB_RADIUS + 1} style={{ fill: 'var(--dial-shadow)' }} />
+                    <circle cx={top.x} cy={top.y} r={KNOB_RADIUS} style={{ fill: 'var(--knob-fill)', stroke: 'var(--knob-stroke)' }} strokeWidth="2.5" />
+                </g>
+            </g>
+            <g className="dial-hint-ghost" style={{ transformOrigin: `${CENTER}px ${CENTER}px` }}>
+                <circle cx={top.x} cy={top.y} r={KNOB_RADIUS} style={{ fill: 'var(--knob-fill)', stroke: 'var(--knob-stroke)' }} strokeWidth="2.5" opacity="0.7" />
+                <path d={`M${chevron.x - 3} ${chevron.y - 5} L${chevron.x + 3} ${chevron.y} L${chevron.x - 3} ${chevron.y + 5}`}
+                    fill="none" style={{ stroke: 'var(--knob-stroke)' }} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                    transform={`rotate(9 ${chevron.x} ${chevron.y})`} opacity="0.7" />
+            </g>
+        </g>
+    );
+});
+
+/** Handle shown at 12 o'clock while an idle dial is hovered (CSS, hover-capable pointers only). */
+function HoverHandle() {
+    const { x, y } = polarToCartesian(DIAL_RADIUS, 0);
+    return (
+        <g className="dial-hover-handle" style={NO_POINTER}>
+            <circle cx={x} cy={y + 1.5} r={KNOB_RADIUS + 1} style={{ fill: 'var(--dial-shadow)' }} />
+            <circle cx={x} cy={y} r={KNOB_RADIUS} style={{ fill: 'var(--knob-fill)', stroke: 'var(--knob-stroke)' }} strokeWidth="2.5" />
+        </g>
+    );
+}
+
 function Knob({ angle, active }: { angle: number; active: boolean }) {
     const { x, y } = polarToCartesian(DIAL_RADIUS, angle);
     const r = active ? KNOB_ACTIVE_RADIUS : KNOB_RADIUS;
@@ -187,6 +234,22 @@ interface HubProps {
     interactive: boolean;
     onActivate: () => void;
 }
+
+// Clockwise arrow in the hub: arc from 300° over 12 o'clock to 150°, head along the tangent at its end
+const HINT_ARROW = (() => {
+    const cx = CENTER, cy = CENTER - 8, r = 11;
+    const at = (deg: number) => ({ x: cx + r * Math.sin((deg * Math.PI) / 180), y: cy - r * Math.cos((deg * Math.PI) / 180) });
+    const from = at(-60), to = at(150);
+    const tangent = ((150 + 90) * Math.PI) / 180;
+    const wing = (off: number) => ({ x: to.x - 5 * Math.sin(tangent + off), y: to.y + 5 * Math.cos(tangent + off) });
+    const w1 = wing(0.7), w2 = wing(-0.7);
+    return {
+        arc: `M${from.x} ${from.y} A${r} ${r} 0 1 1 ${to.x} ${to.y}`,
+        head: `M${w1.x} ${w1.y} L${to.x} ${to.y} L${w2.x} ${w2.y}`,
+    };
+})();
+const HINT_ARROW_ARC = HINT_ARROW.arc;
+const HINT_ARROW_HEAD = HINT_ARROW.head;
 
 // Pointer target only; keyboard users toggle pause via Enter/Space on the dial slider
 function Hub({ content, interactive, onActivate }: HubProps) {
@@ -216,6 +279,23 @@ function Hub({ content, interactive, onActivate }: HubProps) {
                     </g>
                 </>
             )}
+            {content.kind === 'hint' && (
+                <g className="dial-hint-pulse" style={{ fill: 'var(--hub-subtle)' }}>
+                    {content.mode === 'ghost' ? (
+                        <>
+                            {/* Clockwise arrow */}
+                            <path d={HINT_ARROW_ARC} fill="none" style={{ stroke: 'var(--hub-subtle)' }} strokeWidth="2.25" strokeLinecap="round" />
+                            <path d={HINT_ARROW_HEAD} fill="none" style={{ stroke: 'var(--hub-subtle)' }} strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" />
+                            <text x={CENTER} y={CENTER + 17} textAnchor="middle" dominantBaseline="middle" fontSize="12" fontWeight="bold">Drag</text>
+                        </>
+                    ) : (
+                        <>
+                            <text x={CENTER} y={CENTER - 6} textAnchor="middle" dominantBaseline="middle" fontSize="13" fontWeight="bold">Tap</text>
+                            <text x={CENTER} y={CENTER + 10} textAnchor="middle" dominantBaseline="middle" fontSize="10" fontWeight="bold">a number</text>
+                        </>
+                    )}
+                </g>
+            )}
         </g>
     );
 }
@@ -227,6 +307,10 @@ export interface DialProps {
     /** Auto-sec countdown: rainbow covers the elapsed part */
     showElapsed: boolean;
     hideRainbow: boolean;
+    /** First-run hint animation (only passed while the dial is idle) */
+    hint: DialHint;
+    /** Show the handle at 12 o'clock on hover (idle dial) */
+    hoverHandle: boolean;
     isDragging: boolean;
     particles: Particle[];
     hub: HubContent;
@@ -237,7 +321,7 @@ export interface DialProps {
 }
 
 export const Dial = memo(function Dial(props: DialProps) {
-    const { angle, secModeProgress, hrModeProgress, showElapsed, hideRainbow, isDragging, particles, hub, hubInteractive, onHubActivate, onQuickSet, svgRef } = props;
+    const { angle, secModeProgress, hrModeProgress, showElapsed, hideRainbow, hint, hoverHandle, isDragging, particles, hub, hubInteractive, onHubActivate, onQuickSet, svgRef } = props;
     const showKnob = !hideRainbow && (isDragging || (angle > 0.5 && angle < 359.5));
     return (
         <svg ref={svgRef} width="100%" height="100%" viewBox={`0 0 ${CENTER * 2} ${CENTER * 2}`} aria-hidden="true" className="overflow-visible">
@@ -246,10 +330,12 @@ export const Dial = memo(function Dial(props: DialProps) {
                     <feDropShadow dx="0" dy="2" stdDeviation="3" style={{ floodColor: 'var(--dial-shadow)' }} />
                 </filter>
             </defs>
-            <DialMarkings secModeProgress={secModeProgress} hrModeProgress={hrModeProgress} onQuickSet={onQuickSet} />
+            <DialMarkings secModeProgress={secModeProgress} hrModeProgress={hrModeProgress} waveHint={hint === 'wave'} onQuickSet={onQuickSet} />
             <ExplosionParticles particles={particles} />
             {!hideRainbow && <RainbowArcs angle={angle} elapsed={showElapsed} />}
+            {hint === 'ghost' && <GhostHint />}
             {showKnob && <Knob angle={angle} active={isDragging} />}
+            {hoverHandle && !showKnob && hint !== 'ghost' && <HoverHandle />}
             <Hub content={hub} interactive={hubInteractive} onActivate={onHubActivate} />
         </svg>
     );

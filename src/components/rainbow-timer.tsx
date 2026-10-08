@@ -7,7 +7,7 @@ import { RAINBOW_COLORS } from '@/lib/palette';
 import { sounds } from '@/lib/sounds';
 import { cn } from '@/lib/utils';
 import { TimeUnitSwitch } from './time-unit-switch';
-import { Dial, type HubContent, type Particle } from './timer/dial';
+import { Dial, type DialHint, type HubContent, type Particle } from './timer/dial';
 import {
     type TimeUnit, LABEL_RADIUS, MAX_TIME_MS, SNAP_UNIT_MS,
     angleToMs, msToAngle, snapAngle, polarToCartesian,
@@ -38,6 +38,11 @@ const MUTED_STORAGE_KEY = 'rainbowTimerMuted';
 // visible change don't re-render.
 const ANGLE_QUANTUM = 50;
 const KEYBOARD_START_DELAY_MS = 1000;
+// First-run hint: ghost handle (2 sweeps), then number wave (2 rounds). Skipped once the dial was used.
+const HINT_SEEN_KEY = 'rainbowTimerHintSeen';
+const HINT_GHOST_MS = 6500;
+const HINT_WAVE_MS = 6800;
+const IDLE_CAPTION = 'Drag the handle clockwise, or tap a number';
 
 interface StoredTimer {
     endTime?: number;
@@ -105,6 +110,8 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     const keyboardStartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const interruptTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const burstIdRef = useRef(0);
+
+    const [hintPhase, setHintPhase] = useState<'ghost' | 'wave' | 'done'>('done');
 
     const [isMuted, setIsMuted] = useState(true);
     const isMutedRef = useRef(isMuted);
@@ -911,11 +918,39 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     const setMs = angleToMs(snapAngle(angle, timeUnit), timeUnit);
     const setValue = formatSetValue(setMs, timeUnit);
 
+    // Nothing set, running, paused or celebrating
+    const isHintIdle = !isRunning && !isPaused && !isDragging && !isKeyboardSetting && angle === 0
+        && !hideRainbow && !isAlarmPlaying && !isRaining;
+    const hint: DialHint = isHintIdle && hintPhase !== 'done' ? hintPhase : 'none';
+
+    useEffect(() => {
+        if (!hasMounted) return;
+        try {
+            if (!localStorage.getItem(HINT_SEEN_KEY)) setHintPhase('ghost');
+        } catch {}
+    }, [hasMounted]);
+
+    useEffect(() => {
+        if (hintPhase === 'done') return;
+        if (!isHintIdle) {
+            // First use of the dial ends the hint for good
+            setHintPhase('done');
+            try { localStorage.setItem(HINT_SEEN_KEY, '1'); } catch {}
+            return;
+        }
+        const timeout = setTimeout(
+            () => setHintPhase(hintPhase === 'ghost' ? 'wave' : 'done'),
+            hintPhase === 'ghost' ? HINT_GHOST_MS : HINT_WAVE_MS,
+        );
+        return () => clearTimeout(timeout);
+    }, [hintPhase, isHintIdle]);
+
     const hub: HubContent = useMemo(() => {
+        if (hint !== 'none') return { kind: 'hint', mode: hint };
         if (showClock) return { kind: 'clock', value: formatClock(remainingSec * 1000), paused: isPaused };
         if (isSetting) return { kind: 'set', value: setValue.value, unit: setValue.unit };
         return { kind: 'empty' };
-    }, [showClock, isSetting, isPaused, remainingSec, setValue.value, setValue.unit]);
+    }, [hint, showClock, isSetting, isPaused, remainingSec, setValue.value, setValue.unit]);
 
     const endTimeLabel = useMemo(() => {
         if (!timeData) return '';
@@ -927,6 +962,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
         : isKeyboardSetting ? 'press Enter to start'
         : isPaused ? 'paused – tap the center to resume'
         : isRunning ? `ends at ${endTimeLabel}`
+        : isHintIdle ? IDLE_CAPTION
         : '';
 
     const ariaMax = timeUnit === 'hr' ? 12 : 60;
@@ -992,6 +1028,8 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
                             hrModeProgress={hrModeProgress}
                             showElapsed={isDetailView && wasAutoSwitchedRef.current}
                             hideRainbow={hideRainbow}
+                            hint={hint}
+                            hoverHandle={isHintIdle}
                             isDragging={isDragging}
                             particles={explosionParticles}
                             hub={hub}
