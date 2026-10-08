@@ -19,10 +19,10 @@ export type HubContent =
     | { kind: 'empty' }
     | { kind: 'set'; value: string; unit: string }
     | { kind: 'clock'; value: string; paused: boolean }
-    | { kind: 'hint'; mode: 'ghost' | 'wave' };
+    | { kind: 'hint' };
 
-/** First-run hint: `ghost` sweeps a handle clockwise, `wave` pulses the numbers; both play twice. */
-export type DialHint = 'ghost' | 'wave' | 'none';
+/** First-run hint: a ghost handle sweeps clockwise while the numbers pulse, once. */
+export type DialHint = 'play' | 'none';
 
 const INK = 'var(--dial-ink)';
 const RING_CIRCUMFERENCES = RING_RADII.map(r => 2 * Math.PI * r);
@@ -175,7 +175,7 @@ function RainbowArcs({ angle, elapsed }: { angle: number; elapsed: boolean }) {
     );
 }
 
-/** Ghost handle and faint rainbow sweeping clockwise from 12 o'clock (two plays, then gone). */
+/** Ghost handle and faint rainbow sweeping clockwise from 12 o'clock (one play, then gone). */
 const GhostHint = memo(function GhostHint() {
     const top = polarToCartesian(DIAL_RADIUS, 0);
     const chevron = polarToCartesian(DIAL_RADIUS, 9);
@@ -190,6 +190,7 @@ const GhostHint = memo(function GhostHint() {
             </g>
             <g className="dial-hint-invite">
                 <circle cx={top.x} cy={top.y} r={KNOB_RADIUS} fill="none" className="dial-hint-ripple" style={{ stroke: 'var(--knob-stroke)' }} strokeWidth="2" />
+                <HandleHitArea x={top.x} y={top.y} />
                 <g className="dial-hint-breathe">
                     <circle cx={top.x} cy={top.y + 1.5} r={KNOB_RADIUS + 1} style={{ fill: 'var(--dial-shadow)' }} />
                     <circle cx={top.x} cy={top.y} r={KNOB_RADIUS} style={{ fill: 'var(--knob-fill)', stroke: 'var(--knob-stroke)' }} strokeWidth="2.5" />
@@ -205,11 +206,20 @@ const GhostHint = memo(function GhostHint() {
     );
 });
 
+/**
+ * Transparent pointer target for a handle. Handles are drawn above the number labels, so a press
+ * anywhere on (or just around) a handle starts a drag instead of hitting the label behind it.
+ */
+function HandleHitArea({ x, y }: { x: number; y: number }) {
+    return <circle cx={x} cy={y} r={KNOB_ACTIVE_RADIUS} fill="transparent" style={{ pointerEvents: 'all' }} />;
+}
+
 /** Handle shown at 12 o'clock while an idle dial is hovered (CSS, hover-capable pointers only). */
 function HoverHandle() {
     const { x, y } = polarToCartesian(DIAL_RADIUS, 0);
     return (
-        <g className="dial-hover-handle" style={NO_POINTER}>
+        <g className="dial-hover-handle">
+            <HandleHitArea x={x} y={y} />
             <circle cx={x} cy={y + 1.5} r={KNOB_RADIUS + 1} style={{ fill: 'var(--dial-shadow)' }} />
             <circle cx={x} cy={y} r={KNOB_RADIUS} style={{ fill: 'var(--knob-fill)', stroke: 'var(--knob-stroke)' }} strokeWidth="2.5" />
         </g>
@@ -221,7 +231,8 @@ function Knob({ angle, active }: { angle: number; active: boolean }) {
     const r = active ? KNOB_ACTIVE_RADIUS : KNOB_RADIUS;
     // Shadow is a plain offset circle: a filter here would be re-rasterized every frame
     return (
-        <g style={NO_POINTER}>
+        <g>
+            <HandleHitArea x={x} y={y} />
             {active && <circle cx={x} cy={y} r={15} style={{ fill: 'var(--knob-stroke)' }} opacity={0.14} />}
             <circle cx={x} cy={y + 1.5} r={r + 1} style={{ fill: 'var(--dial-shadow)' }} />
             <circle cx={x} cy={y} r={r} style={{ fill: 'var(--knob-fill)', stroke: 'var(--knob-stroke)' }} strokeWidth={active ? 3 : 2.5} />
@@ -280,20 +291,11 @@ function Hub({ content, interactive, onActivate }: HubProps) {
                 </>
             )}
             {content.kind === 'hint' && (
-                <g className="dial-hint-pulse" style={{ fill: 'var(--hub-subtle)' }}>
-                    {content.mode === 'ghost' ? (
-                        <>
-                            {/* Clockwise arrow */}
-                            <path d={HINT_ARROW_ARC} fill="none" style={{ stroke: 'var(--hub-subtle)' }} strokeWidth="2.25" strokeLinecap="round" />
-                            <path d={HINT_ARROW_HEAD} fill="none" style={{ stroke: 'var(--hub-subtle)' }} strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" />
-                            <text x={CENTER} y={CENTER + 17} textAnchor="middle" dominantBaseline="middle" fontSize="12" fontWeight="bold">Drag</text>
-                        </>
-                    ) : (
-                        <>
-                            <text x={CENTER} y={CENTER - 6} textAnchor="middle" dominantBaseline="middle" fontSize="13" fontWeight="bold">Tap</text>
-                            <text x={CENTER} y={CENTER + 10} textAnchor="middle" dominantBaseline="middle" fontSize="10" fontWeight="bold">a number</text>
-                        </>
-                    )}
+                <g className="dial-hint-hub" style={{ fill: 'var(--hub-subtle)' }}>
+                    {/* Clockwise arrow */}
+                    <path d={HINT_ARROW_ARC} fill="none" style={{ stroke: 'var(--hub-subtle)' }} strokeWidth="2.25" strokeLinecap="round" />
+                    <path d={HINT_ARROW_HEAD} fill="none" style={{ stroke: 'var(--hub-subtle)' }} strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" />
+                    <text x={CENTER} y={CENTER + 17} textAnchor="middle" dominantBaseline="middle" fontSize="10.5" fontWeight="bold">Drag or tap</text>
                 </g>
             )}
         </g>
@@ -330,12 +332,12 @@ export const Dial = memo(function Dial(props: DialProps) {
                     <feDropShadow dx="0" dy="2" stdDeviation="3" style={{ floodColor: 'var(--dial-shadow)' }} />
                 </filter>
             </defs>
-            <DialMarkings secModeProgress={secModeProgress} hrModeProgress={hrModeProgress} waveHint={hint === 'wave'} onQuickSet={onQuickSet} />
+            <DialMarkings secModeProgress={secModeProgress} hrModeProgress={hrModeProgress} waveHint={hint === 'play'} onQuickSet={onQuickSet} />
             <ExplosionParticles particles={particles} />
             {!hideRainbow && <RainbowArcs angle={angle} elapsed={showElapsed} />}
-            {hint === 'ghost' && <GhostHint />}
+            {hint === 'play' && <GhostHint />}
             {showKnob && <Knob angle={angle} active={isDragging} />}
-            {hoverHandle && !showKnob && hint !== 'ghost' && <HoverHandle />}
+            {hoverHandle && !showKnob && hint !== 'play' && <HoverHandle />}
             <Hub content={hub} interactive={hubInteractive} onActivate={onHubActivate} />
         </svg>
     );

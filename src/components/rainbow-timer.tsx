@@ -38,10 +38,9 @@ const MUTED_STORAGE_KEY = 'rainbowTimerMuted';
 // visible change don't re-render.
 const ANGLE_QUANTUM = 50;
 const KEYBOARD_START_DELAY_MS = 1000;
-// First-run hint: ghost handle (2 sweeps), then number wave (2 rounds). Skipped once the dial was used.
+// First-run hint: ghost handle sweep and number wave play once, together. Skipped once the dial was used.
 const HINT_SEEN_KEY = 'rainbowTimerHintSeen';
-const HINT_GHOST_MS = 6500;
-const HINT_WAVE_MS = 6800;
+const HINT_PLAY_MS = 4300;
 const IDLE_CAPTION = 'Drag the handle clockwise, or tap a number';
 
 interface StoredTimer {
@@ -111,7 +110,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     const interruptTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const burstIdRef = useRef(0);
 
-    const [hintPhase, setHintPhase] = useState<'ghost' | 'wave' | 'done'>('done');
+    const [hintPhase, setHintPhase] = useState<'play' | 'done'>('done');
 
     const [isMuted, setIsMuted] = useState(true);
     const isMutedRef = useRef(isMuted);
@@ -926,7 +925,7 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
     useEffect(() => {
         if (!hasMounted) return;
         try {
-            if (!localStorage.getItem(HINT_SEEN_KEY)) setHintPhase('ghost');
+            if (!localStorage.getItem(HINT_SEEN_KEY)) setHintPhase('play');
         } catch {}
     }, [hasMounted]);
 
@@ -938,15 +937,12 @@ export function RainbowTimer({ isFullscreen, onFullscreenChange, isPartyMode, is
             try { localStorage.setItem(HINT_SEEN_KEY, '1'); } catch {}
             return;
         }
-        const timeout = setTimeout(
-            () => setHintPhase(hintPhase === 'ghost' ? 'wave' : 'done'),
-            hintPhase === 'ghost' ? HINT_GHOST_MS : HINT_WAVE_MS,
-        );
+        const timeout = setTimeout(() => setHintPhase('done'), HINT_PLAY_MS);
         return () => clearTimeout(timeout);
     }, [hintPhase, isHintIdle]);
 
     const hub: HubContent = useMemo(() => {
-        if (hint !== 'none') return { kind: 'hint', mode: hint };
+        if (hint !== 'none') return { kind: 'hint' };
         if (showClock) return { kind: 'clock', value: formatClock(remainingSec * 1000), paused: isPaused };
         if (isSetting) return { kind: 'set', value: setValue.value, unit: setValue.unit };
         return { kind: 'empty' };
