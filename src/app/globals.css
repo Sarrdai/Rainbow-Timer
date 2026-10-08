@@ -373,11 +373,6 @@
   .is-exiting .party-balloon-body, .is-exiting .party-balloon-string, .party-shard { animation: none !important; }
 }
 
-/* Confetti canvas while a worker draws on it (see Confetti.startWorker); 60 s per iteration keeps the main thread
-   asleep between iterations */
-.confetti-live { animation: confetti-live 60s linear infinite; }
-@keyframes confetti-live { from { opacity: 0.999; } to { opacity: 1; } }
-
 /* Footer Styles */
 .footer-container {
   position: fixed;
