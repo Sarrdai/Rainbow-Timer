@@ -177,13 +177,14 @@
 }
 
 [data-mode="party"] .rainbow-letter {
-  animation: title-wave 1.3s ease-in-out infinite;
+  /* Waves of 1.3 s, twelve per iteration (see the party decoration on iteration events) */
+  animation: title-wave 15.6s ease-in-out infinite;
   animation-delay: calc(var(--d) * -0.11s);
 }
 [data-mode="timer"] .rainbow-letter {
   animation: title-shimmer 7s ease-in-out 1.2s infinite;
 }
-@keyframes title-wave { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.09em) rotate(-2deg); } }
+@keyframes title-wave { 0%, 8.333%, 16.667%, 25%, 33.333%, 41.667%, 50%, 58.333%, 66.667%, 75%, 83.333%, 91.667%, 100% { transform: translateY(0); } 4.167%, 12.5%, 20.833%, 29.167%, 37.5%, 45.833%, 54.167%, 62.5%, 70.833%, 79.167%, 87.5%, 95.833% { transform: translateY(-0.09em) rotate(-2deg); } }
 @keyframes title-shimmer { 0% { --shimmer-x: -4em; } 22%, 100% { --shimmer-x: 8em; } }
 
 .flap-word {
@@ -236,78 +237,98 @@
   pointer-events: none;
   overflow: hidden;
 }
+/* Every animated piece is a zero-size node of its own, so the compositor moves it without repainting;
+   the drawings are small SVGs that overflow their node */
+.party-node { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.party-art { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; }
+.party-defs { position: absolute; width: 0; height: 0; }
+.party-glow { position: absolute; }
 .party-thread { stroke: hsl(var(--muted-foreground)); stroke-opacity: 0.7; }
 .party-wire { stroke: hsl(var(--muted-foreground) / 0.35); }
 
-/* Garlands drop in from the top edge; what hangs on them unfolds, then sways around its hang point */
-.party-drop { transform-box: view-box; transform-origin: 50% 0; animation: party-drop-in 0.95s var(--spring) var(--delay) both; }
-@keyframes party-drop-in { from { transform: translateY(-110px) scaleY(0.2); } }
-.party-item, .party-sway { transform-box: view-box; transform-origin: 0 0; }
-.party-item { animation: party-item-in 0.55s var(--spring) var(--delay) both; }
-@keyframes party-item-in { from { transform: scaleY(0) rotate(-14deg); } }
-.party-sway { animation: party-sway 2.8s ease-in-out var(--sway-delay) infinite; }
-.party-sway--wide { animation-name: party-sway-wide; animation-duration: 2.4s; }
-.party-sway--slow { animation-duration: 3.8s; }
-.party-sway--gentle { animation-name: party-sway-gentle; animation-duration: 3.6s; }
-@keyframes party-sway { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
-@keyframes party-sway-wide { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
-@keyframes party-sway-gentle { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
+/* Entrances fill backwards only: once finished, they no longer hold their own compositor layer.
+   Endless animations repeat their cycle several times per iteration: browsers wake the main thread at every
+   iteration to fire animationiteration events (React listens for them), dozens of times per second otherwise. */
 
-/* Corner pieces: strings drop in from above, paper fans spin open, streamers unroll from the top and sway */
-.party-hang { animation: party-hang-in 1.1s var(--spring) var(--delay) both; }
+/* Garlands drop in from the top edge; what hangs on them unfolds, then sways around its hang point */
+.party-drop { transform-origin: calc(var(--deco-w) / 2) 0; animation: party-drop-in 0.95s var(--spring) var(--delay) backwards; }
+@keyframes party-drop-in { from { transform: translateY(-110px) scaleY(0.2); } }
+.party-item, .party-sway { transform-origin: 0 0; }
+.party-item { animation: party-item-in 0.55s var(--spring) var(--delay) backwards; }
+@keyframes party-item-in { from { transform: scaleY(0) rotate(-14deg); } }
+/* Swings of 2.8 s (wide 2.4 s, slow 3.8 s, gentle 3.6 s), eight per iteration */
+.party-sway { animation: party-sway 22.4s ease-in-out var(--sway-delay) infinite; }
+.party-sway--wide { animation-name: party-sway-wide; animation-duration: 19.2s; }
+.party-sway--slow { animation-duration: 30.4s; }
+.party-sway--gentle { animation-name: party-sway-gentle; animation-duration: 28.8s; }
+@keyframes party-sway { 0%, 12.5%, 25%, 37.5%, 50%, 62.5%, 75%, 87.5%, 100% { transform: rotate(-4deg); } 6.25%, 18.75%, 31.25%, 43.75%, 56.25%, 68.75%, 81.25%, 93.75% { transform: rotate(4deg); } }
+@keyframes party-sway-wide { 0%, 12.5%, 25%, 37.5%, 50%, 62.5%, 75%, 87.5%, 100% { transform: rotate(-7deg); } 6.25%, 18.75%, 31.25%, 43.75%, 56.25%, 68.75%, 81.25%, 93.75% { transform: rotate(7deg); } }
+@keyframes party-sway-gentle { 0%, 12.5%, 25%, 37.5%, 50%, 62.5%, 75%, 87.5%, 100% { transform: rotate(-2deg); } 6.25%, 18.75%, 31.25%, 43.75%, 56.25%, 68.75%, 81.25%, 93.75% { transform: rotate(2deg); } }
+
+/* Corner pieces: strings drop in from above, paper fans spin open, streamers unroll from the top (Unroll) and sway */
+.party-hang { animation: party-hang-in 1.1s var(--spring) var(--delay) backwards; }
 @keyframes party-hang-in { from { transform: translateY(var(--from)); } }
-.party-pop-in { transform-box: fill-box; transform-origin: center; animation: party-pop-in 0.8s var(--spring) var(--delay) both; }
+.party-pop-in { transform-origin: 0 0; animation: party-pop-in 0.8s var(--spring) var(--delay) backwards; }
 @keyframes party-pop-in { from { transform: scale(0) rotate(-140deg); } }
-.party-curl { transform-box: fill-box; transform-origin: 50% 0; animation: party-curl-sway 3.4s ease-in-out var(--sway-delay) infinite; }
+/* Swings of 3.4 s, eight per iteration */
+.party-curl { animation: party-curl-sway 27.2s ease-in-out var(--sway-delay) infinite; }
 .party-curl--gentle { animation-name: party-curl-sway-gentle; }
-@keyframes party-curl-sway { 0%, 100% { transform: rotate(-2.5deg); } 50% { transform: rotate(2.5deg); } }
-@keyframes party-curl-sway-gentle { 0%, 100% { transform: rotate(-1.2deg); } 50% { transform: rotate(1.2deg); } }
-.party-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: party-draw 1.25s cubic-bezier(0.25, 0.8, 0.25, 1) var(--delay) forwards; }
-@keyframes party-draw { to { stroke-dashoffset: 0; } }
+@keyframes party-curl-sway { 0%, 12.5%, 25%, 37.5%, 50%, 62.5%, 75%, 87.5%, 100% { transform: rotate(-2.5deg); } 6.25%, 18.75%, 31.25%, 43.75%, 56.25%, 68.75%, 81.25%, 93.75% { transform: rotate(2.5deg); } }
+@keyframes party-curl-sway-gentle { 0%, 12.5%, 25%, 37.5%, 50%, 62.5%, 75%, 87.5%, 100% { transform: rotate(-1.2deg); } 6.25%, 18.75%, 31.25%, 43.75%, 56.25%, 68.75%, 81.25%, 93.75% { transform: rotate(1.2deg); } }
 
 /* Lights switch on one after another with a short flicker, then twinkle; neon tubes flicker a little longer */
-.party-lit { animation: party-light-on 0.6s linear var(--on) both; }
-.party-lit--neon { animation: party-neon-on 1.1s linear var(--on) both; }
+.party-lit { animation: party-light-on 0.6s linear var(--on) backwards; }
+.party-lit--neon { animation: party-neon-on 1.1s linear var(--on) backwards; }
 @keyframes party-light-on { 0% { opacity: 0; } 25% { opacity: 1; } 40% { opacity: 0.15; } 60%, 100% { opacity: 1; } }
 @keyframes party-neon-on { 0% { opacity: 0.25; } 10% { opacity: 1; } 16% { opacity: 0.3; } 30% { opacity: 1; } 36% { opacity: 0.5; } 45%, 100% { opacity: 1; } }
-.party-twinkle { transform-box: fill-box; transform-origin: center; animation: party-twinkle var(--tw) ease-in-out var(--tw-delay) infinite alternate; }
+/* Pulses up and down in var(--tw) each, four times per iteration */
+.party-twinkle { animation: party-twinkle calc(var(--tw) * 8) ease-in-out var(--tw-delay) infinite; }
 .party-twinkle--calm { animation-name: party-breathe; }
-@keyframes party-twinkle { from { opacity: 0.45; transform: scale(0.82); } to { opacity: 1; transform: scale(1.06); } }
-@keyframes party-breathe { from { opacity: 0.72; } to { opacity: 1; } }
-/* A shimmer running down a light strand */
-.party-drip { animation: party-drip 2.6s linear var(--tw-delay) infinite; }
-@keyframes party-drip { 0%, 40%, 100% { opacity: 0.32; } 8% { opacity: 1; } }
-.party-blink { transform-box: fill-box; transform-origin: center; animation: party-blink var(--tw) ease-in-out var(--tw-delay) infinite; }
-@keyframes party-blink { 0%, 55%, 100% { transform: scale(0); } 78% { transform: scale(1) rotate(45deg); } }
+@keyframes party-twinkle { 0%, 25%, 50%, 75%, 100% { opacity: 0.45; transform: scale(0.82); } 12.5%, 37.5%, 62.5%, 87.5% { opacity: 1; transform: scale(1.06); } }
+@keyframes party-breathe { 0%, 25%, 50%, 75%, 100% { opacity: 0.72; } 12.5%, 37.5%, 62.5%, 87.5% { opacity: 1; } }
+/* Light strands: a masked window slides down while its content counter-moves and stays in place (see Sweep),
+   so the lights switch on one after another and a shimmer runs down the strand without repainting */
+.party-sweep { position: absolute; }
+.party-sweep-hold { position: absolute; inset: 0; }
+.party-sweep-on { animation: party-sweep var(--dur) var(--ease, linear) var(--delay) backwards; }
+.party-sweep-on > .party-sweep-hold { animation: party-sweep-hold var(--dur) var(--ease, linear) var(--delay) backwards; }
+@keyframes party-sweep { from { transform: translateY(var(--sweep-from)); } }
+@keyframes party-sweep-hold { from { transform: translateY(calc(-1 * var(--sweep-from))); } }
+/* The shimmer window is 0.8 strand lengths high and travels two strand lengths in a 2.6 s round, four rounds
+   per iteration; between rounds it jumps back (step-end) while it is out of sight */
+.party-drip { animation: party-drip 10.4s linear infinite; }
+.party-drip > .party-sweep-hold { animation: party-drip-hold 10.4s linear infinite; }
+@keyframes party-drip { 0%, 25%, 50%, 75% { transform: translateY(-100%); } 24.99%, 49.99%, 74.99%, 99.99% { transform: translateY(150%); animation-timing-function: step-end; } 100% { transform: translateY(150%); } }
+@keyframes party-drip-hold { 0%, 25%, 50%, 75% { transform: translateY(100%); } 24.99%, 49.99%, 74.99%, 99.99% { transform: translateY(-150%); animation-timing-function: step-end; } 100% { transform: translateY(-150%); } }
+/* Blinks every var(--tw), four times per iteration */
+.party-blink { transform-origin: 0 0; animation: party-blink calc(var(--tw) * 4) ease-in-out var(--tw-delay) infinite; }
+@keyframes party-blink { 0%, 13.75%, 25%, 38.75%, 50%, 63.75%, 75%, 88.75%, 100% { transform: scale(0); } 19.5%, 44.5%, 69.5%, 94.5% { transform: scale(1) rotate(45deg); } }
 
 /* A theme switch fades the old decoration out while the new one builds up */
 .party-deco.is-faded { animation: party-fade-out 0.5s ease-out forwards; }
 @keyframes party-fade-out { to { opacity: 0; } }
 
 /* Balloons fly in from below and bob */
-.party-balloon { position: absolute; left: var(--x); top: var(--y); width: var(--w); animation: party-rise 1.1s var(--spring) var(--delay) both; }
+.party-balloon { position: absolute; left: var(--x); top: var(--y); width: var(--w); animation: party-rise 1.1s var(--spring) var(--delay) backwards; }
 @keyframes party-rise { from { transform: translateY(calc(100vh - var(--y) + 40px)) rotate(var(--tilt)); } }
-.party-balloon-bob { position: relative; transform-origin: 50% 100%; animation: party-bob var(--bob) ease-in-out var(--sway-delay) infinite; }
-@keyframes party-bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-10px) rotate(3deg); } }
+/* Bobs every var(--bob), six times per iteration */
+.party-balloon-bob { position: relative; transform-origin: 50% 100%; animation: party-bob calc(var(--bob) * 6) ease-in-out var(--sway-delay) infinite; }
+@keyframes party-bob { 0%, 16.667%, 33.333%, 50%, 66.667%, 83.333%, 100% { transform: translateY(0) rotate(-3deg); } 8.333%, 25%, 41.667%, 58.333%, 75%, 91.667% { transform: translateY(-10px) rotate(3deg); } }
 .party-balloon svg { display: block; width: 100%; height: auto; overflow: visible; }
 .party-balloon-body, .party-balloon-string { transform-box: fill-box; }
 /* Balloons can be popped by a click; the replacement floats up more gently */
 .party-balloon-body { pointer-events: auto; cursor: pointer; }
 .is-hidden .party-balloon-body, .is-exiting .party-balloon-body, .is-popping .party-balloon-body { pointer-events: none; }
-.party-balloon.is-fresh { animation: party-rise 1.8s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.party-balloon.is-fresh { animation: party-rise 1.8s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
 
 /* Exit: lights go out one after another, balloons pop, everything that hangs falls to the floor and fades */
-.is-exiting .party-fall {
-  transform-box: fill-box;
-  transform-origin: 50% 0;
-  animation: party-fall var(--fall-dur) cubic-bezier(0.5, 0, 0.9, 0.6) var(--fall-delay) forwards;
-}
+.is-exiting .party-fall { animation: party-fall var(--fall-dur) cubic-bezier(0.5, 0, 0.9, 0.6) var(--fall-delay) forwards; }
 @keyframes party-fall {
   0% { transform: translateY(0) rotate(0); opacity: 1; }
   80% { opacity: 1; }
   100% { transform: translateY(var(--fall-dy)) rotate(var(--fall-rot)); opacity: 0; }
 }
-.is-exiting .party-lit { animation: party-light-off 0.2s ease-in var(--off) forwards; }
+.is-exiting .party-lit, .is-exiting .party-switch { animation: party-light-off 0.2s ease-in var(--off) forwards; }
 .is-exiting .party-lit--neon { animation-name: party-neon-off; }
 @keyframes party-light-off { to { opacity: 0; } }
 @keyframes party-neon-off { to { opacity: 0.25; } }
@@ -327,7 +348,7 @@
   background: var(--c);
   opacity: 0;
   transform: translate(-50%, -50%) rotate(var(--a));
-  animation: party-shard 0.42s ease-out var(--pop) both;
+  animation: party-shard 0.42s ease-out var(--pop) backwards;
 }
 @keyframes party-shard {
   0% { opacity: 0; }
@@ -338,12 +359,12 @@
 @media (prefers-reduced-motion: reduce) {
   .flap-cell, .flap-card { transition: none; }
   .rainbow-letter,
-  .party-drop, .party-item, .party-sway, .party-hang, .party-pop-in, .party-curl, .party-draw,
-  .party-lit, .party-twinkle, .party-drip, .party-blink,
+  .party-drop, .party-item, .party-sway, .party-hang, .party-pop-in, .party-curl,
+  .party-lit, .party-twinkle, .party-sweep-on, .party-sweep-on > .party-sweep-hold, .party-blink,
   .party-balloon, .party-balloon-bob {
     animation: none !important;
   }
-  .party-draw { stroke-dashoffset: 0; }
+  .party-drip { display: none; }
   .party-balloon.is-fresh { animation: none !important; }
   .is-popping .party-balloon-body, .is-popping .party-balloon-string { animation: party-fade-out 0.2s forwards !important; }
   .is-exiting .party-fall, .is-exiting .party-balloon {

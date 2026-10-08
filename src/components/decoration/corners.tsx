@@ -1,6 +1,7 @@
 import { Shade, shine } from '../balloon-shapes';
 import {
-    CornerStrand, corners, curlPoints, curls, Dangle, f1, GLOW, GlowGradient, INK, Lit, makeKit, mix, RAINBOW, seconds, starPath, toPath, useSvgId, vars,
+    Art, bounds, circlesPath, CornerStrand, corners, curlPoints, curls, Dangle, Defs, f1, Fall, Glow, GLOW, GlowGradient, INK, Layer, Lit, makeKit, mix, place, RAINBOW, seconds,
+    starPath, Sweep, toPath, Unroll, useSvgId, vars,
     type DecoLayout, type DecoVariant, type Kit,
 } from './kit';
 
@@ -33,7 +34,6 @@ function frontPath(points: [number, number, boolean][]) {
 
 /** Curling ribbons: the light front of each turn with a glossy edge over the darker inside; they unroll from the corners */
 function RibbonCurls({ layout }: { layout: DecoLayout }) {
-    const id = useSvgId();
     const k = makeKit(layout, 11);
     return (
         <>
@@ -44,17 +44,13 @@ function RibbonCurls({ layout }: { layout: DecoLayout }) {
                 const color = RAINBOW[c.colorIndex];
                 const w = f1(c.width + 1.6);
                 return (
-                    <CornerStrand key={n} fall={c.fall} phase={c.phase}>
-                        {/* Reveals the ribbon along its length as it unrolls */}
-                        <mask id={`${id}-${n}`} maskUnits="userSpaceOnUse" x={-60} y={-60} width={k.width + 120} height={k.height + 120}>
-                            <path className="party-draw" pathLength={1} style={vars({ '--delay': k.delay(c.start) })} d={full} fill="none" stroke="#fff" strokeWidth={w + 18} strokeLinecap="round" />
-                        </mask>
-                        <g mask={`url(#${id}-${n})`}>
+                    <CornerStrand key={n} x={c.x} fall={c.fall} phase={c.phase}>
+                        <Unroll box={bounds(points, w)} delay={k.delay(c.start)}>
                             <path d={full} fill="none" stroke={color} strokeWidth={w} strokeLinejoin="round" />
                             <path d={full} fill="none" stroke="#000" strokeOpacity={0.34} strokeWidth={w} strokeLinejoin="round" />
                             <path d={front} fill="none" stroke={color} strokeWidth={w} strokeLinejoin="round" />
                             <path d={front} fill="none" stroke="#fff" strokeOpacity={0.5} strokeWidth={f1(w * 0.22)} strokeLinecap="round" transform={`translate(0 ${f1(-w * 0.24)})`} />
-                        </g>
+                        </Unroll>
                     </CornerStrand>
                 );
             })}
@@ -127,13 +123,20 @@ function FansAndHoneycombs({ layout }: { layout: DecoLayout }) {
                             </Dangle>
                         );
                     })}
-                    {FANS.map(([dx, cy, r, ci, bi], j) => (
-                        <g key={`fan-${j}`} className="party-fall" style={k.fall(0.1, 0.3)}>
-                            <g className="party-pop-in" style={vars({ '--delay': k.delay(0.15 + j * 0.12) })}>
-                                <Fan cx={fromEdge(dx * scale)} cy={cy * scale} r={r * scale} color={RAINBOW[(ci + side * 3) % RAINBOW.length]} button={RAINBOW[(bi + side * 3) % RAINBOW.length]} />
-                            </g>
-                        </g>
-                    ))}
+                    {FANS.map(([dx, cy, r, ci, bi], j) => {
+                        const x = fromEdge(dx * scale);
+                        return (
+                            <Fall key={`fan-${j}`} fall={k.fall(0.1, 0.3)} x={x} y={(cy - r) * scale}>
+                                <Layer style={place(x, cy * scale)}>
+                                    <Layer className="party-pop-in" style={vars({ '--delay': k.delay(0.15 + j * 0.12) })}>
+                                        <Art>
+                                            <Fan cx={0} cy={0} r={r * scale} color={RAINBOW[(ci + side * 3) % RAINBOW.length]} button={RAINBOW[(bi + side * 3) % RAINBOW.length]} />
+                                        </Art>
+                                    </Layer>
+                                </Layer>
+                            </Fall>
+                        );
+                    })}
                 </>
             ))}
         </>
@@ -145,13 +148,15 @@ const POMPOM_PUFFS = 17;
 
 /** Tissue pompom centered on (0, 0); `folds` are the little crinkle arcs */
 function Pompom({ r, color, folds }: { r: number; color: string; folds: { lit: string; shaded: string } }) {
-    const body = [
-        ...Array.from({ length: POMPOM_PUFFS }, (_, n) => {
-            const a = (n / POMPOM_PUFFS) * 2 * Math.PI;
-            return <circle key={n} cx={f1(r * 0.78 * Math.cos(a))} cy={f1(r * 0.78 * Math.sin(a))} r={f1(r * 0.24)} />;
-        }),
-        <circle key="center" cx={0} cy={0} r={f1(r * 0.8)} />,
-    ];
+    const body = (
+        <path d={circlesPath([
+            ...Array.from({ length: POMPOM_PUFFS }, (_, n) => {
+                const a = (n / POMPOM_PUFFS) * 2 * Math.PI;
+                return [r * 0.78 * Math.cos(a), r * 0.78 * Math.sin(a), r * 0.24] as const;
+            }),
+            [0, 0, r * 0.8],
+        ])} />
+    );
     return (
         <>
             <Shade fill={color} dark={0.15} offset={[f1(-r * 0.14), f1(-r * 0.12)]}>{body}</Shade>
@@ -202,16 +207,23 @@ function Pompoms({ layout }: { layout: DecoLayout }) {
 
 /* ---------- Dark theme ---------- */
 
-/** Fine strands of lights instead of streamers; a shimmer runs down each strand */
+/**
+ * Lights of a strand switch on one after another within 0.9 s, each with the flicker of party-light-on (on at 25 %,
+ * dim at 40 %, on again at 60 % of 0.6 s). As a profile running down the strand: its speed in strand lengths per
+ * second, and where on, dim and on again are reached behind the front, in strand lengths.
+ */
+const SWITCH_ON = { speed: 1 / 0.9, flicker: [0.1667, 0.2667, 0.4] } as const;
+
+/** Fine strands of lights instead of streamers; the lights switch on down the strand and a shimmer runs down it */
 function CurtainLights({ layout }: { layout: DecoLayout }) {
     const id = useSvgId();
     const k = makeKit(layout, 14);
     const perSide = k.small ? 3 : 5;
     return (
         <>
-            <defs>
+            <Defs>
                 {GLOW.map((color, i) => <GlowGradient key={i} id={`${id}-${i}`} color={color} strength={1} />)}
-            </defs>
+            </Defs>
             {corners(k, (fromEdge, side) => {
                 let dx = 14;
                 return Array.from({ length: perSide }, (_, i) => {
@@ -221,21 +233,40 @@ function CurtainLights({ layout }: { layout: DecoLayout }) {
                     const start = 0.25 + i * 0.09;
                     dx += k.rand(22, 30);
                     const wireX = (y: number) => x + 2.5 * Math.sin(y / 38 + i);
-                    const wire = toPath(Array.from({ length: Math.ceil((len + 6) / 4) + 1 }, (_, n) => [wireX(-6 + n * 4), -6 + n * 4] as const));
+                    const wirePoints = Array.from({ length: Math.ceil((len + 6) / 4) + 1 }, (_, n) => [wireX(-6 + n * 4), -6 + n * 4] as const);
                     const leds: number[] = [];
                     for (let y = 10; y <= len; y += 16) leds.push(y);
+                    // Glows need a circle each for their gradient; solid dots are drawn as one path
+                    const glows = (opacity = 1) => (
+                        <g fill={`url(#${id}-${ci})`} opacity={opacity}>
+                            {leds.map((y) => <circle key={y} cx={f1(wireX(y))} cy={y} r={10} />)}
+                        </g>
+                    );
+                    const dots = (r: number, fill: string) => <path d={circlesPath(leds.map((y) => [wireX(y), y, r] as const))} fill={fill} />;
+                    // The switch-on window ends below the last glow; its front runs down at the speed lights switch on
+                    const [onAt, dimAt, fullAt] = SWITCH_ON.flicker.map((share) => f1(share * len));
+                    const bottom = len + fullAt + 12;
                     return (
-                        <CornerStrand key={i} fall={k.fall(0.45, 0.7)} phase={k.phase(3.4)} gentle>
-                            <path className="party-draw party-wire" pathLength={1} style={vars({ '--delay': k.delay(start) })} d={wire} fill="none" strokeWidth={1} />
-                            {leds.map((y) => (
-                                <g key={y} transform={`translate(${f1(wireX(y))} ${y})`}>
-                                    <circle r={2} fill={mix(RAINBOW[ci], -0.45)} />
-                                    <Lit on={k.delay(start + (y / len) * 0.9)} off={seconds(k.rand(0, 0.35))}>
-                                        <circle className="party-drip" style={vars({ '--tw-delay': seconds((y / len) * 1.3 - 2.6) })} r={10} fill={`url(#${id}-${ci})`} />
-                                        <circle r={2.2} fill={mix(GLOW[ci], 0.6)} />
-                                    </Lit>
-                                </g>
-                            ))}
+                        <CornerStrand key={i} x={x} fall={k.fall(0.45, 0.7)} phase={k.phase(3.4)} gentle>
+                            <Unroll box={bounds(wirePoints, 1)} delay={k.delay(start)}>
+                                <path className="party-wire" d={toPath(wirePoints)} fill="none" strokeWidth={1} />
+                            </Unroll>
+                            <Art>{dots(2, mix(RAINBOW[ci], -0.45))}</Art>
+                            <Layer className="party-switch" style={vars({ '--off': seconds(k.rand(0, 0.35)) })}>
+                                    <Sweep
+                                        left={x - 16} top={-20} width={32} height={bottom + 20}
+                                        mask={`linear-gradient(to top, transparent, #000 ${onAt}px, rgb(0 0 0 / 0.15) ${dimAt}px, #000 ${fullAt}px)`}
+                                        className="party-sweep-on"
+                                        style={vars({ '--delay': k.delay(start), '--dur': seconds(bottom / (len * SWITCH_ON.speed)), '--sweep-from': `${-f1(bottom)}px` })}
+                                    >
+                                        <Art>{glows(0.32)}</Art>
+                                        {/* Brighter copies of the glows, seen through the shimmer running down */}
+                                        <Sweep left={x - 16} top={0} width={32} height={len * 0.8} mask="linear-gradient(transparent, #000 80%, transparent)" className="party-drip">
+                                            <Art>{glows()}</Art>
+                                        </Sweep>
+                                        <Art>{dots(2.2, mix(GLOW[ci], 0.6))}</Art>
+                                    </Sweep>
+                            </Layer>
                         </CornerStrand>
                     );
                 });
@@ -250,19 +281,22 @@ function NeonCurls({ layout }: { layout: DecoLayout }) {
     return (
         <>
             {curls(k).map((c, n) => {
-                const d = toPath(curlPoints(c, 0.5));
+                const points = curlPoints(c, 0.5);
+                const d = toPath(points);
                 const glow = GLOW[c.colorIndex];
                 const tube = (stroke: string, width: number, opacity: number) => (
-                    <path className="party-draw" pathLength={1} style={vars({ '--delay': k.delay(c.start) })} d={d} fill="none" stroke={stroke} strokeWidth={f1(width)} strokeOpacity={opacity} strokeLinecap="round" strokeLinejoin="round" />
+                    <path d={d} fill="none" stroke={stroke} strokeWidth={f1(width)} strokeOpacity={opacity} strokeLinecap="round" strokeLinejoin="round" />
                 );
                 return (
-                    <CornerStrand key={n} fall={c.fall} phase={c.phase}>
-                        <Lit on={k.delay(c.start + 0.9)} off={seconds(k.rand(0, 0.3))} neon>
-                            {tube(glow, c.width + 10, 0.1)}
-                            {tube(glow, c.width + 4.5, 0.24)}
-                            {tube(glow, c.width * 0.8, 1)}
-                            {tube('#fff', c.width * 0.26, 0.8)}
-                        </Lit>
+                    <CornerStrand key={n} x={c.x} fall={c.fall} phase={c.phase}>
+                        <Unroll box={bounds(points, c.width / 2 + 5)} delay={k.delay(c.start)}>
+                            <Lit on={k.delay(c.start + 0.9)} off={seconds(k.rand(0, 0.3))} neon>
+                                {tube(glow, c.width + 10, 0.1)}
+                                {tube(glow, c.width + 4.5, 0.24)}
+                                {tube(glow, c.width * 0.8, 1)}
+                                {tube('#fff', c.width * 0.26, 0.8)}
+                            </Lit>
+                        </Unroll>
                     </CornerStrand>
                 );
             })}
@@ -333,27 +367,29 @@ function MoonAndStars({ layout }: { layout: DecoLayout }) {
     const scale = k.small ? 0.8 : 1;
     return (
         <>
-            <defs>
-                <GlowGradient id={`${id}-glow`} color="#fff1a8" strength={0.55} />
-            </defs>
             {corners(k, (fromEdge, side) => (
                 <>
-                    <g className="party-fall" style={k.fall(0, 0.2)}>
+                    <Fall fall={k.fall(0, 0.2)} x={fromEdge(k.small ? 45 : 90)} y={30}>
                         {Array.from({ length: k.small ? 3 : 5 }, (_, n) => (
-                            <g key={n} transform={`translate(${f1(fromEdge(k.rand(10, k.small ? 80 : 170)))} ${f1(k.rand(30, k.height * 0.45))}) scale(${f1(k.rand(0.5, 1.1))})`}>
-                                <path className="party-blink" style={vars({ '--tw': seconds(k.rand(2.2, 3.6)), '--tw-delay': seconds(-k.rand(0, 3.6)) })} d={SPARKLE} fill="#fff6c8" />
-                            </g>
+                            <Layer key={n} style={place(fromEdge(k.rand(10, k.small ? 80 : 170)), k.rand(30, k.height * 0.45), 0, k.rand(0.5, 1.1))}>
+                                <Layer className="party-blink" style={vars({ '--tw': seconds(k.rand(2.2, 3.6)), '--tw-delay': seconds(-k.rand(0, 3.6)) })}>
+                                    <Art><path d={SPARKLE} fill="#fff6c8" /></Art>
+                                </Layer>
+                            </Layer>
                         ))}
-                    </g>
+                    </Fall>
                     {SKY[side].slice(0, k.small ? 2 : 4).map(([dx, share, kind, size], j) => {
                         const r = size * scale;
                         const len = k.height * share * scale;
                         const moon = kind === 'moon';
+                        const glow = (
+                            <Glow
+                                y={len + r} r={r * (moon ? 2.4 : 2.8)} color="#fff1a8" strength={0.55}
+                                on={k.delay(0.6 + j * 0.15)} off={seconds(k.rand(0, 0.3))} twinkle={k.twinkle(moon ? 'party-twinkle party-twinkle--calm' : undefined)}
+                            />
+                        );
                         return (
-                            <Dangle key={j} x={fromEdge(dx * scale)} len={len} delay={k.delay(0.25 + j * 0.1)} fall={k.fall(0.15, 0.4)} phase={k.phase(3.6)}>
-                                <Lit on={k.delay(0.6 + j * 0.15)} off={seconds(k.rand(0, 0.3))}>
-                                    <circle {...k.twinkle(moon ? 'party-twinkle party-twinkle--calm' : undefined)} cx={0} cy={f1(len + r)} r={f1(r * (moon ? 2.4 : 2.8))} fill={`url(#${id}-glow)`} />
-                                </Lit>
+                            <Dangle key={j} x={fromEdge(dx * scale)} len={len} delay={k.delay(0.25 + j * 0.1)} fall={k.fall(0.15, 0.4)} phase={k.phase(3.6)} glow={glow}>
                                 <g transform={`translate(0 ${f1(len + r)})`}>
                                     {moon
                                         ? <SleepyMoon r={r} maskId={`${id}-moon${side}`} />

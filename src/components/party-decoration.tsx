@@ -1,6 +1,6 @@
 "use client";
 
-import React, { memo, useEffect, useRef, useState, type CSSProperties } from 'react';
+import React, { memo, startTransition, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { cn } from '@/lib/utils';
 import { BALLOON_COLORS, CLASSIC_BALLOON, SHAPED_BALLOONS, type BalloonShape } from './balloon-shapes';
 import { DECO_SETS, type DecoLayout, type DecoTheme, type DecoVariant } from './decoration';
@@ -115,25 +115,42 @@ function buildScene(sceneId: number, deco: Deco, settled: boolean): Scene {
 
 const vars = (v: Record<string, string | number>) => v as CSSProperties;
 
+/**
+ * Counts from 1 up to `last`, one step per animation frame, so a large tree mounts in parts instead of in one long
+ * frame. The entrance animations start with a delay anyway. Settled scenes (rebuilt after a resize) start complete.
+ */
+function useStage(last: number, settled: boolean) {
+    const [stage, setStage] = useState(settled ? last : 1);
+    useEffect(() => {
+        if (stage >= last) return;
+        const id = requestAnimationFrame(() => setStage(stage + 1));
+        return () => cancelAnimationFrame(id);
+    }, [stage, last]);
+    return stage;
+}
+
 /** Memoized, so popping a balloon does not redraw the decoration */
 const DecoView = memo(function DecoView({ deco, exiting }: { deco: Deco; exiting: boolean }) {
-    const { width: W, height: H } = deco.layout;
+    // The garland first, the corner decoration a frame later
+    const stage = useStage(2, deco.layout.base < 0);
     return (
-        <svg className={cn('party-deco fixed inset-0 z-[40]', exiting && 'is-exiting', deco.fadedAt !== null && 'is-faded')} width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
-            <deco.Corner layout={deco.layout} />
+        <div className={cn('party-deco fixed inset-0 z-[40]', exiting && 'is-exiting', deco.fadedAt !== null && 'is-faded')} style={vars({ '--deco-w': `${deco.layout.width}px` })}>
+            {stage >= 2 && <deco.Corner layout={deco.layout} />}
             <deco.Garland layout={deco.layout} />
-        </svg>
+        </div>
     );
 });
 
 function SceneView({ scene, onPop }: { scene: Scene; onPop: (index: number, x: number, y: number) => void }) {
     const exiting = scene.exitedAt !== null;
+    // The balloons follow the decoration's two stages
+    const stage = useStage(3, scene.decos[0].layout.base < 0);
     return (
         <>
             {/* Garland and corner decoration hang behind the title */}
             {scene.decos.map((deco) => <DecoView key={deco.id} deco={deco} exiting={exiting} />)}
             {/* Balloons float in front of the dial, below the confetti */}
-            <div className={cn('party-deco fixed inset-0 z-[50]', exiting && 'is-exiting')}>
+            {stage >= 3 && <div className={cn('party-deco fixed inset-0 z-[50]', exiting && 'is-exiting')}>
                 {scene.balloons.map((b, i) => (
                     <div
                         key={`${i}-${b.gen}`}
@@ -157,7 +174,7 @@ function SceneView({ scene, onPop }: { scene: Scene; onPop: (index: number, x: n
                         </div>
                     </div>
                 ))}
-            </div>
+            </div>}
         </>
     );
 }
@@ -208,7 +225,8 @@ export function PartyDecoration({ active, visible, avoidRef, onBalloonPop }: Par
         if (active) {
             const deco = buildDeco(nextId.current++, readTheme(), false, avoidRef?.current?.getBoundingClientRect() ?? null);
             const scene = buildScene(nextId.current++, deco, false);
-            setScenes((s) => [...s, scene]);
+            // The new scene is a large SVG tree: render it in slices, so the title and the confetti keep moving
+            startTransition(() => setScenes((s) => [...s, scene]));
         } else {
             const now = performance.now();
             setScenes((s) => s.map((sc) => (sc.exitedAt === null ? { ...sc, exitedAt: now } : sc)));
