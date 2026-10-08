@@ -13,6 +13,7 @@ const MAX_DT_MS = 50;
 const MAX_DPR = 1.5;
 const BURN_OFF_MS = 1500;
 const RAIN_PIECES_PER_FRAME = 1;
+const RELEASE_DELAY_MS = 500;
 
 interface Physics {
   gravity: number;
@@ -70,6 +71,9 @@ export type ConfettiWorkerMessage =
   | { attach: true; canvas?: OffscreenCanvas }
   | { detach: true };
 
+/** Messages from the confetti worker: a finished burst, or whether the animation loop runs */
+export type ConfettiWorkerReply = { done: number } | { running: boolean };
+
 interface Point { x: number; y: number }
 
 // Workers without requestAnimationFrame fall back to a timer
@@ -93,6 +97,9 @@ export class ConfettiEngine {
   private rainAcc = 0;
   private burnStart: number | null = null;
   private rafId: number | null = null;
+  private releaseTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Called when the animation loop starts and stops */
+  onRunning: ((running: boolean) => void) | null = null;
   private lastTime = 0;
   private width = 0;
   private height = 0;
@@ -244,17 +251,29 @@ export class ConfettiEngine {
 
   private start() {
     if (this.rafId !== null || !this.canvas || !this.attached) return;
+    if (this.releaseTimer !== null) { clearTimeout(this.releaseTimer); this.releaseTimer = null; }
     this.resize();
     this.lastTime = performance.now();
     this.rafId = raf(this.frame);
+    this.onRunning?.(true);
   }
 
   private stop() {
-    if (this.rafId !== null) cancelRaf(this.rafId);
+    if (this.rafId !== null) {
+      cancelRaf(this.rafId);
+      this.onRunning?.(false);
+    }
     this.rafId = null;
     this.burnStart = null;
-    // Release the backing store while idle
-    if (this.canvas) { this.canvas.width = 0; this.canvas.height = 0; }
+    if (!this.canvas || !this.ctx || this.releaseTimer !== null) return;
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    // Release the backing store while idle, but only once the cleared frame is on screen: an OffscreenCanvas
+    // never shows a 0x0 frame and would keep showing the last pieces
+    this.releaseTimer = setTimeout(() => {
+      this.releaseTimer = null;
+      if (this.rafId === null && this.canvas) { this.canvas.width = 0; this.canvas.height = 0; }
+    }, RELEASE_DELAY_MS);
   }
 
   private release(p: Piece) {
@@ -330,7 +349,6 @@ export class ConfettiEngine {
     if (write > 0 || this.raining) {
       this.rafId = raf(this.frame);
     } else {
-      this.rafId = null;
       this.stop();
     }
   };

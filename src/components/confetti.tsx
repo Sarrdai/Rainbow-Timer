@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from 'react';
-import { ConfettiEngine, type ConfettiCommand, type ConfettiWorkerMessage } from './confetti-engine';
+import { ConfettiEngine, type ConfettiCommand, type ConfettiWorkerMessage, type ConfettiWorkerReply } from './confetti-engine';
 
 export { RAINBOW_COLORS } from './confetti-engine';
 
@@ -95,13 +95,20 @@ class Confetti {
 
   private startWorker(canvas: HTMLCanvasElement): Worker | null {
     if (typeof Worker === 'undefined' || !('transferControlToOffscreen' in canvas)) return null;
+    // Diagnostics: ?confetti=main draws on the main thread
+    if (new URLSearchParams(window.location.search).get('confetti') === 'main') return null;
     let worker: Worker;
     try {
       worker = new Worker(new URL('./confetti.worker.ts', import.meta.url));
     } catch {
       return null;
     }
-    worker.onmessage = (e: MessageEvent<number>) => this.finish(e.data);
+    worker.onmessage = ({ data }: MessageEvent<ConfettiWorkerReply>) => {
+      if ('done' in data) this.finish(data.done);
+      // Some Android WebViews present (and pace) worker canvas frames only while the page itself redraws:
+      // a composited animation keeps it redrawing while confetti fly
+      else canvas.classList.toggle('confetti-live', data.running);
+    };
     const offscreen = canvas.transferControlToOffscreen();
     worker.postMessage({ attach: true, canvas: offscreen } satisfies ConfettiWorkerMessage, [offscreen]);
     return worker;
